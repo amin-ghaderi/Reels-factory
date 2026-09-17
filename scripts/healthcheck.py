@@ -19,6 +19,8 @@ REQUIRED_FOLDERS = (
     "rejected",
     "refined_transcripts",
     "refine_requests",
+    "normalized_transcripts",
+    "semantic_plans",
 )
 WRITABLE_FOLDERS = (
     "transcripts",
@@ -29,6 +31,8 @@ WRITABLE_FOLDERS = (
     "rejected",
     "refined_transcripts",
     "refine_requests",
+    "normalized_transcripts",
+    "semantic_plans",
 )
 
 

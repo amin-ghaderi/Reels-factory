@@ -5,11 +5,27 @@ import tempfile
 from pathlib import Path
 
 from .faces import LayoutPlan, plan_clip_layout
+from .plan_validate import plan_has_segments, validate_semantic_plan
 from .subtitles import build_rebased_srt
 from .utils import parse_timestamp, read_json, require_binary, run
 
 
 def _clips_from_plan(plan: dict) -> list[dict]:
+    if plan_has_segments(plan):
+        clips = []
+        for idx, seg in enumerate(plan.get("segments") or []):
+            clips.append({
+                "label": str(seg.get("role") or f"seg_{idx:02d}"),
+                "start": parse_timestamp(seg["start"]),
+                "end": parse_timestamp(seg["end"]),
+            })
+        if not clips:
+            raise ValueError("Edit plan segments[] is empty.")
+        for clip in clips:
+            if clip["end"] <= clip["start"]:
+                raise ValueError(f"Invalid clip range: {clip}")
+        return clips
+
     clips = []
     hook = plan.get("hook")
     body = plan.get("body")
@@ -63,12 +79,44 @@ def _resolve_source_video(source: Path, plan_path: Path) -> Path:
     raise FileNotFoundError(f"Source video not found: {source}")
 
 
+def resolve_transcript_for_plan(plan_path: Path, plan: dict, cfg: dict) -> Path:
+    """Prefer a refined window transcript for the plan's candidate, else the full transcript."""
+    source = Path(plan.get("source_video") or "")
+    stem = source.stem or plan_path.stem
+    candidate_id = plan.get("candidate_id")
+    refined_dir = Path(cfg["paths"]["refined_transcripts"])
+    if candidate_id:
+        refined = refined_dir / f"{stem}.{candidate_id}.refined.json"
+        if refined.exists():
+            return refined
+    transcripts_dir = Path(cfg["paths"]["transcripts"])
+    full = transcripts_dir / f"{stem}.transcript.json"
+    normalized_dir = Path(cfg["paths"].get("normalized_transcripts") or "")
+    if normalized_dir:
+        normalized = normalized_dir / f"{stem}.normalized.json"
+        if normalized.exists():
+            return normalized
+    if full.exists():
+        return full
+    raise FileNotFoundError(
+        f"No transcript found for {plan_path.name} (candidate_id={candidate_id!r})"
+    )
+
+
 def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
     ffmpeg = require_binary("ffmpeg")
     plan = read_json(plan_path)
     transcript = read_json(transcript_path)
     source = Path(plan.get("source_video") or transcript["source_video"])
     source = _resolve_source_video(source, plan_path)
+
+    if plan_has_segments(plan):
+        duration = None
+        try:
+            duration = float((transcript or {}).get("duration") or 0) or None
+        except (TypeError, ValueError):
+            duration = None
+        validate_semantic_plan(plan, source_duration=duration)
 
     rcfg = cfg["render"]
     crf = str(rcfg["video_crf"])

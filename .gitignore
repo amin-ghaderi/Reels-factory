@@ -20,3 +20,7 @@ data/rejected/*
 !data/rejected/.gitkeep
 data/refined_transcripts/*
 !data/refined_transcripts/.gitkeep
+data/normalized_transcripts/*
+!data/normalized_transcripts/.gitkeep
+data/semantic_plans/*
+!data/semantic_plans/.gitkeep

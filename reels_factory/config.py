@@ -14,6 +14,8 @@ DEFAULT_CONFIG = {
         "rejected": "data/rejected",
         "refined_transcripts": "data/refined_transcripts",
         "refine_requests": "data/refine_requests",
+        "normalized_transcripts": "data/normalized_transcripts",
+        "semantic_plans": "data/semantic_plans",
     },
     "transcription": {
         "model": "small",
@@ -63,6 +65,19 @@ DEFAULT_CONFIG = {
             "horizontal_margin": 0.15,
             "body": 1.05,
         },
+    },
+    "ai_editor": {
+        "enabled": True,
+        "normalization": {
+            "model": "composer-2.5",
+            "mode": "ask",
+        },
+        "semantic_editor": {
+            "model": "grok-4.6",
+            "reasoning": "high",
+            "full_transcript": True,
+        },
+        "max_reels": None,
     },
 }
 

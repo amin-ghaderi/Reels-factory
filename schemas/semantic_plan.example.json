@@ -1,0 +1,38 @@
+{
+  "reel_id": "nabz18_semantic_01",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "title": "Short faithful title",
+  "editorial_summary": "One-sentence description of the idea.",
+  "open_loop": "What question does this Reel answer?",
+  "hook_rationale": "Why this source line is the hook.",
+  "segments": [
+    {
+      "start": "00:10:55.200",
+      "end": "00:11:00.400",
+      "role": "hook",
+      "why": "Strongest authentic statement"
+    },
+    {
+      "start": "00:10:28.100",
+      "end": "00:10:39.000",
+      "role": "setup",
+      "why": "Minimum context"
+    },
+    {
+      "start": "00:10:39.000",
+      "end": "00:10:47.800",
+      "role": "core",
+      "why": "Central claim"
+    },
+    {
+      "start": "00:11:00.400",
+      "end": "00:11:05.900",
+      "role": "payoff",
+      "why": "Resolution"
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high",
+  "estimated_duration_s": 29.0,
+  "original_source_span_s": 37.8
+}
