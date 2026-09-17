@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import statistics
 import urllib.request
 from dataclasses import dataclass, field
@@ -579,3 +580,150 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
             single=crop,
         )
     return plan
+
+
+def _box_dict(box: BBox, label: str | None = None) -> dict:
+    payload = {
+        "label": label,
+        "x": round(box.x, 1),
+        "y": round(box.y, 1),
+        "w": round(box.w, 1),
+        "h": round(box.h, 1),
+        "cx": round(box.cx, 1),
+        "cy": round(box.cy, 1),
+        "score": round(box.score, 3),
+    }
+    if label is None:
+        payload.pop("label")
+    return payload
+
+
+def assign_person_labels(faces: list[BBox]) -> list[tuple[str, BBox]]:
+    """Label the two largest faces left=A, right=B; extras stay unlabeled."""
+    ordered = sorted(faces, key=lambda b: b.area, reverse=True)
+    primary = ordered[:2]
+    primary.sort(key=lambda b: b.cx)
+    labels = ["A", "B"][: len(primary)]
+    labeled = list(zip(labels, primary))
+    used = {id(b) for _, b in labeled}
+    for face in faces:
+        if id(face) not in used:
+            labeled.append(("extra", face))
+    return labeled
+
+
+def _annotate_frame(frame, labeled: list[tuple[str, BBox]]):
+    colors = {
+        "A": (40, 220, 40),
+        "B": (40, 200, 255),
+        "extra": (0, 220, 255),
+    }
+    out = frame.copy()
+    for label, box in labeled:
+        x, y, w, h = int(box.x), int(box.y), int(box.w), int(box.h)
+        color = colors.get(label, (180, 180, 180))
+        cv2.rectangle(out, (x, y), (x + w, y + h), color, 3)
+        caption = f"{label} {box.score:.2f}"
+        cv2.putText(
+            out,
+            caption,
+            (x, max(24, y - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            color,
+            2,
+            cv2.LINE_AA,
+        )
+    return out
+
+
+def diagnose_clip_faces(
+    video: Path,
+    start: float,
+    end: float,
+    out_dir: Path,
+    *,
+    frame_count: int = 8,
+    score_threshold: float = 0.55,
+    min_size: float = 40.0,
+) -> dict:
+    """Sample representative frames, save annotated boxes, and summarize detections."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if end <= start:
+        raise ValueError("Diagnostic window must have end > start")
+    n = max(2, int(frame_count))
+    timestamps = [start + (i + 0.5) * (end - start) / n for i in range(n)]
+
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video for diagnostics: {video}")
+    method = "opencv_haar"
+    yunet = None
+    model = ensure_yunet_model()
+    if model is not None:
+        yunet = CachedYunet(model, score_threshold=score_threshold)
+        method = "opencv_yunet"
+
+    frames_report = []
+    two_person_hits = 0
+    for idx, t in enumerate(timestamps, start=1):
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000.0)
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            frames_report.append({"index": idx, "time": t, "ok": False, "faces": []})
+            continue
+        frame_h, frame_w = frame.shape[:2]
+        if yunet is not None:
+            faces = yunet.detect(frame)
+            method = "opencv_yunet"
+        else:
+            faces = detect_faces_haar(frame, score_threshold=score_threshold)
+            method = "opencv_haar"
+        faces = filter_faces(faces, frame_w, frame_h, min_size)
+        labeled = assign_person_labels(faces)
+        if sum(1 for label, _ in labeled if label in {"A", "B"}) >= 2:
+            two_person_hits += 1
+        annotated = _annotate_frame(frame, labeled)
+        image_name = f"frame_{idx:02d}.jpg"
+        cv2.imwrite(str(out_dir / image_name), annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+        frames_report.append({
+            "index": idx,
+            "time": round(t, 3),
+            "time_clock": f"{int(t // 3600):02d}:{int((t % 3600) // 60):02d}:{t % 60:06.3f}",
+            "ok": True,
+            "image": image_name,
+            "face_count": len(faces),
+            "faces": [_box_dict(box, label) for label, box in labeled],
+        })
+    cap.release()
+
+    counts = [row["face_count"] for row in frames_report if row.get("ok")]
+    avg_faces = (sum(counts) / len(counts)) if counts else 0.0
+    ok_frames = sum(1 for row in frames_report if row.get("ok"))
+    two_person_ok = ok_frames > 0 and two_person_hits / ok_frames >= 0.75
+    summary = {
+        "video": str(video),
+        "start": start,
+        "end": end,
+        "method": method,
+        "frame_count": len(frames_report),
+        "ok_frames": ok_frames,
+        "two_person_frames": two_person_hits,
+        "avg_faces": round(avg_faces, 3),
+        "two_person_ok": two_person_ok,
+        "frames": frames_report,
+    }
+    (out_dir / "report.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(
+        f"[faces] diagnostics method={method} avg_faces={avg_faces:.2f} "
+        f"two_person_frames={two_person_hits}/{ok_frames} ok={two_person_ok}"
+    )
+    for row in frames_report:
+        print(
+            f"  t={row.get('time_clock', row.get('time'))} count={row.get('face_count', 0)} "
+            f"boxes={row.get('faces', [])}"
+        )
+    return summary
