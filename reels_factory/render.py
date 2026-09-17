@@ -4,6 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from .faces import LayoutPlan, plan_clip_layout
 from .subtitles import build_rebased_srt
 from .utils import parse_timestamp, read_json, require_binary, run
 
@@ -65,8 +66,6 @@ def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
     source = _resolve_source_video(source, plan_path)
 
     rcfg = cfg["render"]
-    width, height = int(rcfg["width"]), int(rcfg["height"])
-    fps = int(rcfg["fps"])
     crf = str(rcfg["video_crf"])
     audio_bitrate = str(rcfg["audio_bitrate"])
     clips = _clips_from_plan(plan)
@@ -79,20 +78,34 @@ def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
     with tempfile.TemporaryDirectory(prefix="reels_factory_") as td:
         temp = Path(td)
         parts = []
-        vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps={fps}"
+        layouts: list[LayoutPlan] = []
         for idx, clip in enumerate(clips):
+            layout = plan_clip_layout(source, clip["start"], clip["end"], rcfg)
+            layouts.append(layout)
+            print(
+                f"[layout] clip={clip['label']} mode={layout.mode} "
+                f"method={layout.method} avg_faces={layout.avg_faces:.2f} "
+                f"samples={len(layout.face_counts)}"
+            )
             part = temp / f"part_{idx:02d}.mp4"
             run([
                 ffmpeg, "-y",
                 "-ss", str(clip["start"]), "-to", str(clip["end"]),
                 "-i", str(source),
-                "-vf", vf,
+                "-filter_complex", layout.filter_complex,
+                "-map", "[v]", "-map", "0:a?",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", crf,
                 "-c:a", "aac", "-b:a", audio_bitrate,
                 "-movflags", "+faststart",
                 str(part),
             ])
             parts.append(part)
+
+        all_counts = [n for layout in layouts for n in layout.face_counts]
+        avg_faces = (sum(all_counts) / len(all_counts)) if all_counts else 0.0
+        method = next((lay.method for lay in layouts if lay.method != "none"), "none")
+        modes = ",".join(lay.mode for lay in layouts)
+        print(f"[layout] detection={method} avg_faces={avg_faces:.2f} modes={modes}")
 
         concat_file = temp / "concat.txt"
         concat_file.write_text(

@@ -45,3 +45,4 @@ render:
   subtitle_font_size: 18
   subtitle_margin_v: 110
   subtitle_outline: 2
+  layout: stacked_faces

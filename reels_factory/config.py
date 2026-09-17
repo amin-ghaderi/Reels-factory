@@ -51,6 +51,12 @@ DEFAULT_CONFIG = {
         "subtitle_font_size": 18,
         "subtitle_margin_v": 110,
         "subtitle_outline": 2,
+        "layout": "stacked_faces",
+        "face_sample_interval": 0.5,
+        "face_score_threshold": 0.55,
+        "face_min_size": 40,
+        "face_track_min_hit_ratio": 0.4,
+        "face_smooth_alpha": 0.35,
     },
 }
 
