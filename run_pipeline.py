@@ -11,6 +11,7 @@ from reels_factory.cursor_ai import CursorAIError
 from reels_factory.pipeline import preprocess_video
 from reels_factory.refine import parse_refine_request, refine_window, refine_windows
 from reels_factory.render import render_reel, resolve_transcript_for_plan
+from reels_factory.program_map import map_program
 from reels_factory.semantic_editor import semantic_edit
 from reels_factory.utils import parse_timestamp, read_json
 
@@ -183,6 +184,21 @@ def cmd_semantic_edit(args):
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+def cmd_map_program(args):
+    cfg = load_config(ROOT, Path(args.config) if args.config else None)
+    video = Path(args.video)
+    try:
+        result = map_program(video, cfg, root=ROOT, force=args.force)
+    except CursorAIError as exc:
+        print(f"[map-program] FAILED — existing local workflow is unchanged. {exc}")
+        raise SystemExit(1) from exc
+    print(json.dumps({
+        "program_map": str(Path(cfg["paths"]["program_maps"]) / f"{Path(args.video).stem}.program_map.json"),
+        "unit_count": result.get("unit_count"),
+        "model": result.get("mapper_model"),
+    }, ensure_ascii=False, indent=2))
+
+
 def cmd_render_semantic(args):
     cfg = load_config(ROOT, Path(args.config) if args.config else None)
     plan = Path(args.plan)
@@ -248,6 +264,11 @@ def build_parser():
     se.add_argument("--video", required=True)
     se.add_argument("--force", action="store_true")
     se.set_defaults(func=cmd_semantic_edit)
+
+    mp = sub.add_parser("map-program", help="Map full-program Q&A / conversation structure via Cursor Grok")
+    mp.add_argument("--video", required=True)
+    mp.add_argument("--force", action="store_true")
+    mp.set_defaults(func=cmd_map_program)
 
     rs = sub.add_parser("render-semantic", help="Render a multi-segment semantic plan (no captions)")
     rs.add_argument("--plan", required=True)

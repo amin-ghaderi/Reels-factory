@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
         "refine_requests": "data/refine_requests",
         "normalized_transcripts": "data/normalized_transcripts",
         "semantic_plans": "data/semantic_plans",
+        "program_maps": "data/program_maps",
     },
     "transcription": {
         "model": "small",
@@ -73,6 +74,11 @@ DEFAULT_CONFIG = {
             "mode": "ask",
         },
         "semantic_editor": {
+            "model": "grok-4.6",
+            "reasoning": "high",
+            "full_transcript": True,
+        },
+        "program_mapper": {
             "model": "grok-4.6",
             "reasoning": "high",
             "full_transcript": True,

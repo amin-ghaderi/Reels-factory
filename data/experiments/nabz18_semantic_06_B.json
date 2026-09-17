@@ -1,0 +1,16 @@
+{
+  "reel_id": "nabz18_semantic_06_B",
+  "title": "Past the point of return (experiment B: stronger in-point)",
+  "editorial_summary": "Control idea, chronological from collapse punch line. No reorder.",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "segments": [
+    {
+      "start": "00:17:52.030",
+      "end": "00:18:09.850",
+      "role": "body",
+      "why": "open on collapse punch, no reorder"
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high"
+}

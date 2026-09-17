@@ -1,0 +1,62 @@
+{
+  "reel_id": "nabz18_q02",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "source_unit": "Q02",
+  "title": "Q02 — how the state confronts people",
+  "editorial_summary": "Experimental Q&A Reel from program-map unit Q02 only. Chronological. No cold open.",
+  "open_loop": "How is the Islamic Republic actually confronting people this week?",
+  "hook_used": false,
+  "hook_rationale": "Strongest authentic line is 00:09:34 hunger-vs-street, but it depends on prior 'ترس/هزینه' setup. Cold-opening on 00:10:31–00:10:52 would start mid-clause («به مطمئن باشن»). Chronological Q→A is clearer.",
+  "strongest_authentic_hook_not_used_as_open": {
+    "start": "00:09:34.540",
+    "end": "00:09:44.320",
+    "used_as": "payoff"
+  },
+  "removed": [
+    "00:07:24.060–00:07:49.880 host pivot / thousands of arrests intro",
+    "00:08:01.740–00:08:21.440 garbled or-question and judicial/economic aside",
+    "00:09:20.260–00:09:34.540 ASR-weak 'fear lasts until a point'",
+    "00:09:44.320–00:10:31.140 game-theory lecture repeating the same turning point",
+    "00:10:31.140–00:11:12.620 restates 00:09:34 in more abstract form; 00:11:10 trails off"
+  ],
+  "playback_check": {
+    "subject_clear": true,
+    "answers_the_question": true,
+    "qualifications_kept": "guest's claim is strategic cost-raising and a survival turning point; timing of protests is not overstated",
+    "repetition": false,
+    "ending_complete": true
+  },
+  "segments": [
+    {
+      "start": "00:08:21.440",
+      "end": "00:08:36.080",
+      "role": "question_core",
+      "text": "ما می‌خوایم توی این هفته که توی نبض ایران داریم به‌خصوص این مسائل رو می‌خوایم می‌خوایم ببینیم توی این هفته‌ای که گذشت جمهوری اسلامی واقعاً داره چه‌جوری مقابله می‌شه با مردم",
+      "why": "Shortest host span that still states the actual question: how the state confronted people this week."
+    },
+    {
+      "start": "00:08:38.740",
+      "end": "00:08:59.740",
+      "role": "central_answer",
+      "text": "ببینید کلاً پایه‌های استراتژیک جمهوری اسلامی عادت به بالا بردن هزینه و ترس مردم با افزایش هزینه انسانی داره",
+      "why": "Guest's central answer: the strategy is raising human cost to frighten people."
+    },
+    {
+      "start": "00:09:00.310",
+      "end": "00:09:19.400",
+      "role": "reasoning",
+      "text": "یعنی در همین سلسله زمانی که تحلیلش برای این باشه که اعتراضات در واقع دیر یا زود صورت خواهد گرفت می‌ره به سمت گسترش اعدام‌ها ترساندن مردم ترس مردم",
+      "why": "Necessary reasoning that ties the strategy to this week's executions, not a generic claim."
+    },
+    {
+      "start": "00:09:34.540",
+      "end": "00:09:44.320",
+      "role": "payoff",
+      "text": "زمانی که مردم به اینجا برسن که بین گرسنگی و در خیابان رفتن یکی رو انتخاب کنند",
+      "why": "Complete, authentic limit of that strategy; ending is a full thought, not a leftover clause."
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high",
+  "estimated_duration_s": 64.51
+}

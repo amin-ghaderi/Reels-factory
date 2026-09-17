@@ -1,0 +1,16 @@
+{
+  "reel_id": "nabz18_semantic_06_A",
+  "title": "Past the point of return (experiment A: continuous close)",
+  "editorial_summary": "Control idea, chronological close only. No reorder.",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "segments": [
+    {
+      "start": "00:17:47.030",
+      "end": "00:18:09.850",
+      "role": "body",
+      "why": "continuous close, no backward jump"
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high"
+}

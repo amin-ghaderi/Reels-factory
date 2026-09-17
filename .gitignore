@@ -24,3 +24,5 @@ data/normalized_transcripts/*
 !data/normalized_transcripts/.gitkeep
 data/semantic_plans/*
 !data/semantic_plans/.gitkeep
+data/program_maps/*
+!data/program_maps/.gitkeep

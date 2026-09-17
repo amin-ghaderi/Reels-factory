@@ -1,0 +1,27 @@
+{
+  "source_video": "data/inbox/nabz-18.mp4",
+  "program_duration": "00:19:13.835",
+  "units": [
+    {
+      "unit_id": "Q01",
+      "topic": "Short topic label",
+      "question": {
+        "start": "00:02:14.000",
+        "end": "00:02:31.000",
+        "core_start": "00:02:22.000",
+        "core_end": "00:02:31.000",
+        "text": "Source-faithful host question"
+      },
+      "answer": {
+        "start": "00:02:31.000",
+        "end": "00:05:18.000",
+        "core_start": "00:02:34.000",
+        "status": "complete",
+        "summary": "What the guest actually answers"
+      },
+      "question_type": "main_question",
+      "references_to_previous_unit": [],
+      "notes": "optional short note"
+    }
+  ]
+}
