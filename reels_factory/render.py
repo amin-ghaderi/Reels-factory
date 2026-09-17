@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from .subtitles import build_rebased_srt
-from .utils import read_json, require_binary, run
+from .utils import parse_timestamp, read_json, require_binary, run
 
 
 def _clips_from_plan(plan: dict) -> list[dict]:
@@ -14,12 +14,16 @@ def _clips_from_plan(plan: dict) -> list[dict]:
     body = plan.get("body")
     hook_enabled = bool(hook) and hook.get("enabled", True)
     if hook_enabled:
-        clips.append({"label": "hook", "start": float(hook["start"]), "end": float(hook["end"])})
+        clips.append({
+            "label": "hook",
+            "start": parse_timestamp(hook["start"]),
+            "end": parse_timestamp(hook["end"]),
+        })
     if body:
-        b0, b1 = float(body["start"]), float(body["end"])
+        b0, b1 = parse_timestamp(body["start"]), parse_timestamp(body["end"])
         avoid_repeat = bool(plan.get("avoid_hook_repeat", False))
         if avoid_repeat and hook_enabled:
-            h0, h1 = float(hook["start"]), float(hook["end"])
+            h0, h1 = parse_timestamp(hook["start"]), parse_timestamp(hook["end"])
             # If the hook is contained in the body, omit its duplicate occurrence.
             # Cold open first, then story/context before the hook, then payoff after it.
             if b0 <= h0 and h1 <= b1 and h1 > h0:
@@ -39,13 +43,26 @@ def _clips_from_plan(plan: dict) -> list[dict]:
     return clips
 
 
+def _resolve_source_video(source: Path, plan_path: Path) -> Path:
+    if source.exists():
+        return source.resolve()
+    if not source.is_absolute():
+        cwd_try = (Path.cwd() / source).resolve()
+        if cwd_try.exists():
+            return cwd_try
+        for parent in plan_path.resolve().parents:
+            candidate = (parent / source).resolve()
+            if candidate.exists():
+                return candidate
+    raise FileNotFoundError(f"Source video not found: {source}")
+
+
 def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
     ffmpeg = require_binary("ffmpeg")
     plan = read_json(plan_path)
     transcript = read_json(transcript_path)
     source = Path(plan.get("source_video") or transcript["source_video"])
-    if not source.exists():
-        raise FileNotFoundError(f"Source video not found: {source}")
+    source = _resolve_source_video(source, plan_path)
 
     rcfg = cfg["render"]
     width, height = int(rcfg["width"]), int(rcfg["height"])

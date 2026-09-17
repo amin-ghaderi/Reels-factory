@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from .utils import srt_ts
+from .utils import parse_timestamp, srt_ts
 
 
 def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
     return max(0.0, min(a1, b1) - max(a0, b0))
+
+
+def _segment_range(seg: dict) -> tuple[float, float]:
+    start = seg.get("start", seg.get("source_start"))
+    end = seg.get("end", seg.get("source_end"))
+    if start is None or end is None:
+        raise KeyError("Transcript segment needs start/end or source_start/source_end")
+    return parse_timestamp(start), parse_timestamp(end)
 
 
 def build_rebased_srt(transcript: dict, clips: list[dict], out_path: Path) -> Path:
@@ -15,7 +23,7 @@ def build_rebased_srt(transcript: dict, clips: list[dict], out_path: Path) -> Pa
     for clip in clips:
         c0, c1 = float(clip["start"]), float(clip["end"])
         for seg in transcript.get("segments", []):
-            s0, s1 = float(seg["start"]), float(seg["end"])
+            s0, s1 = _segment_range(seg)
             if _overlap(c0, c1, s0, s1) <= 0:
                 continue
             local_start = timeline_cursor + max(s0, c0) - c0

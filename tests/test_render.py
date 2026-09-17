@@ -44,6 +44,16 @@ def test_disabled_hook_uses_body_only():
     assert clips == [{"label": "body", "start": 10.0, "end": 50.0}]
 
 
+def test_clock_body_timestamps_without_hook():
+    plan = {
+        "body": {"start": "00:10:23.120", "end": "00:11:00.380"},
+        "cold_open": {"enabled": False, "start": None, "end": None},
+        "avoid_hook_repeat": False,
+    }
+    clips = _clips_from_plan(plan)
+    assert clips == [{"label": "body", "start": 623.12, "end": 660.38}]
+
+
 def test_repeat_allowed_keeps_full_body():
     plan = {
         "hook": {"enabled": True, "start": 30.0, "end": 35.0},

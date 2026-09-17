@@ -26,3 +26,17 @@ def test_rebased_srt_follows_cold_open_timeline(tmp_path: Path):
     assert "00:00:00,000 --> 00:00:05,500" in text
     assert text.index("hook line") < text.index("story start")
     assert text.index("story start") < text.index("payoff")
+
+
+def test_rebased_srt_accepts_refined_source_timestamps(tmp_path: Path):
+    transcript = {
+        "segments": [
+            {"source_start": 623.12, "source_end": 631.1, "text": "پاسخ به این سآل"},
+        ]
+    }
+    clips = [{"label": "body", "start": 623.12, "end": 660.38}]
+    out = tmp_path / "reel.srt"
+    build_rebased_srt(transcript, clips, out)
+    text = out.read_text(encoding="utf-8")
+    assert "پاسخ به این سآل" in text
+    assert "00:00:00,000" in text
