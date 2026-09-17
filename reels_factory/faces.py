@@ -142,35 +142,67 @@ def stable_track_bbox(track: FaceTrack, alpha: float = 0.35) -> BBox | None:
     return median_bbox(smooth_bboxes(filled, alpha=alpha))
 
 
+def face_crop_params(rcfg: dict | None = None) -> dict:
+    raw = (rcfg or {}).get("face_crop") or {}
+    return {
+        "zoom": float(raw.get("zoom", 1.32)),
+        "headroom": float(raw.get("headroom", 0.38)),
+        "horizontal_margin": float(raw.get("horizontal_margin", 0.15)),
+        "body": float(raw.get("body", 1.05)),
+    }
+
+
 def crop_around_face(
     face: BBox,
     frame_w: int,
     frame_h: int,
     aspect: float,
     *,
-    headroom: float = 0.75,
-    body: float = 2.0,
-    side: float = 1.15,
+    zoom: float = 1.32,
+    headroom: float = 0.38,
+    horizontal_margin: float = 0.15,
+    body: float = 1.05,
+    side: float | None = None,
 ) -> BBox:
-    """Build a face-safe crop with headroom/body margin, clamped to the frame."""
-    pad_x = side * face.w
-    pad_top = headroom * face.h
-    pad_bot = body * face.h
-    desired_w = max(face.w + 2 * pad_x, 2.0)
-    desired_h = max(face.h + pad_top + pad_bot, 2.0)
+    """Tight face-safe crop: head + shoulders + upper torso, no stretching."""
+    if side is not None:
+        horizontal_margin = side
+    zoom = max(1.0, float(zoom))
+    pad_top = max(0.0, float(headroom)) * face.h
+    pad_x = max(0.0, float(horizontal_margin)) * face.w
+    pad_bot = max(0.2, float(body)) * face.h
+
+    desired_w = max(face.w + 2 * pad_x, face.w * 1.02, 2.0)
+    desired_h = max(pad_top + face.h + pad_bot, face.h * 1.02, 2.0)
     if desired_w / desired_h < aspect:
         desired_w = desired_h * aspect
     else:
         desired_h = desired_w / aspect
+
+    crop_w = desired_w / zoom
+    crop_h = desired_h / zoom
+
+    # Zoom may not eat the face or the requested headroom.
+    min_h = face.h + pad_top
+    min_w = face.w + 2 * pad_x
+    if crop_h < min_h:
+        crop_h = min_h
+        crop_w = crop_h * aspect
+    if crop_w < min_w:
+        crop_w = min_w
+        crop_h = crop_w / aspect
+        if crop_h < min_h:
+            crop_h = min_h
+            crop_w = crop_h * aspect
 
     max_h = float(frame_h)
     max_w = max_h * aspect
     if max_w > frame_w:
         max_w = float(frame_w)
         max_h = max_w / aspect
-
-    crop_w = min(desired_w, max_w)
-    crop_h = crop_w / aspect
+    if crop_w > max_w:
+        crop_w = max_w
+        crop_h = crop_w / aspect
     if crop_h > max_h:
         crop_h = max_h
         crop_w = crop_h * aspect
@@ -402,6 +434,7 @@ def decide_layout(
     smooth_alpha: float = 0.35,
     method: str = "opencv_yunet",
     face_counts: list[int] | None = None,
+    crop: dict | None = None,
 ) -> LayoutPlan:
     counts = face_counts or []
     avg = (sum(counts) / len(counts)) if counts else 0.0
@@ -414,14 +447,15 @@ def decide_layout(
     )
     half_aspect = width / max(1, (height // 2))
     full_aspect = width / max(1, height)
+    crop_cfg = {**face_crop_params(), **(crop or {})}
 
     if len(chosen) >= 2:
         boxes = [stable_track_bbox(t, alpha=smooth_alpha) for t in chosen[:2]]
         boxes = [b for b in boxes if b is not None]
         if len(boxes) >= 2:
             boxes.sort(key=lambda b: b.cx)
-            top = crop_around_face(boxes[0], frame_w, frame_h, half_aspect, headroom=0.75, body=2.0, side=1.15)
-            bottom = crop_around_face(boxes[1], frame_w, frame_h, half_aspect, headroom=0.75, body=2.0, side=1.15)
+            top = crop_around_face(boxes[0], frame_w, frame_h, half_aspect, **crop_cfg)
+            bottom = crop_around_face(boxes[1], frame_w, frame_h, half_aspect, **crop_cfg)
             return LayoutPlan(
                 mode="stacked_faces",
                 filter_complex=stacked_faces_filter(top, bottom, frame_w, frame_h, width, height, fps),
@@ -437,14 +471,14 @@ def decide_layout(
     if len(chosen) == 1:
         face = stable_track_bbox(chosen[0], alpha=smooth_alpha)
         if face is not None:
-            crop = crop_around_face(face, frame_w, frame_h, full_aspect, headroom=0.85, body=3.2, side=0.95)
+            single = crop_around_face(face, frame_w, frame_h, full_aspect, headroom=0.85, body=3.2, side=0.95)
             return LayoutPlan(
                 mode="single_face",
-                filter_complex=single_face_filter(crop, frame_w, frame_h, width, height, fps),
+                filter_complex=single_face_filter(single, frame_w, frame_h, width, height, fps),
                 method=method,
                 face_counts=counts,
                 avg_faces=avg,
-                single=crop,
+                single=single,
             )
 
     return LayoutPlan(
@@ -535,6 +569,12 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
     min_size = float(rcfg.get("face_min_size", 40))
     min_hit_ratio = float(rcfg.get("face_track_min_hit_ratio", 0.4))
     alpha = float(rcfg.get("face_smooth_alpha", 0.35))
+    crop_cfg = face_crop_params(rcfg)
+    print(
+        "[layout] face_crop "
+        f"zoom={crop_cfg['zoom']:.2f} headroom={crop_cfg['headroom']:.2f} "
+        f"horizontal_margin={crop_cfg['horizontal_margin']:.2f} body={crop_cfg['body']:.2f}"
+    )
 
     try:
         samples, method, frame_w, frame_h = sample_clip_faces(
@@ -567,6 +607,7 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
         smooth_alpha=alpha,
         method=method,
         face_counts=counts,
+        crop=crop_cfg,
     )
     if requested == "single_face" and plan.mode == "stacked_faces" and plan.top is not None:
         # Honor an explicit single-person request without changing detection.

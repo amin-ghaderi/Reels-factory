@@ -46,7 +46,7 @@ DEFAULT_CONFIG = {
         "video_crf": 20,
         "audio_bitrate": "160k",
         "loudness_target_lufs": -16,
-        "burn_captions": True,
+        "burn_captions": False,
         "subtitle_font": "Tahoma",
         "subtitle_font_size": 18,
         "subtitle_margin_v": 110,
@@ -57,6 +57,12 @@ DEFAULT_CONFIG = {
         "face_min_size": 40,
         "face_track_min_hit_ratio": 0.4,
         "face_smooth_alpha": 0.35,
+        "face_crop": {
+            "zoom": 1.32,
+            "headroom": 0.38,
+            "horizontal_margin": 0.15,
+            "body": 1.05,
+        },
     },
 }
 

@@ -40,9 +40,14 @@ render:
   video_crf: 20
   audio_bitrate: 160k
   loudness_target_lufs: -16
-  burn_captions: true
+  burn_captions: false
   subtitle_font: Tahoma
   subtitle_font_size: 18
   subtitle_margin_v: 110
   subtitle_outline: 2
   layout: stacked_faces
+  face_crop:
+    zoom: 1.32
+    headroom: 0.38
+    horizontal_margin: 0.15
+    body: 1.05

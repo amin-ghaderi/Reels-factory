@@ -32,6 +32,10 @@ def test_two_face_layout_selection():
         assert crop.y <= face.y + 1
         assert crop.x + crop.w >= face.x + face.w - 1
         assert crop.y + crop.h >= face.y + face.h - 1
+        assert abs(crop.cx - face.cx) < crop.w * 0.2
+        # Tighter than the old wide pane crop (~836x744).
+        assert crop.w < 650
+        assert crop.h < 600
 
 
 def test_one_face_fallback():
@@ -73,3 +77,17 @@ def test_bounding_box_smoothing():
     raw_spread = max(b.x for b in raw) - min(b.x for b in raw)
     smooth_spread = max(b.x for b in smoothed) - min(b.x for b in smoothed)
     assert smooth_spread < raw_spread
+
+
+def test_stacked_zoom_tightens_crop():
+    left = _track(*[BBox(360, 400, 150, 200, 0.9) for _ in range(6)])
+    right = _track(*[BBox(1340, 350, 145, 200, 0.92) for _ in range(6)])
+    loose = decide_layout([left, right], 1920, 1080, crop={"zoom": 1.0})
+    tight = decide_layout([left, right], 1920, 1080, crop={"zoom": 1.32})
+    assert tight.top.w < loose.top.w
+    assert tight.top.h < loose.top.h
+    face = left.boxes[0]
+    assert tight.top.x <= face.x + 1
+    assert tight.top.y <= face.y + 1
+    assert tight.top.x + tight.top.w >= face.x + face.w - 1
+    assert tight.top.y + tight.top.h >= face.y + face.h - 1

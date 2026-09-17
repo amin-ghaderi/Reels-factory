@@ -1,4 +1,5 @@
-from reels_factory.render import _clips_from_plan
+from reels_factory.config import DEFAULT_CONFIG
+from reels_factory.render import _clips_from_plan, _should_burn_captions
 
 
 def test_cold_open_omits_repeated_hook():
@@ -64,3 +65,10 @@ def test_repeat_allowed_keeps_full_body():
     assert [c["label"] for c in clips] == ["hook", "body"]
     assert clips[1]["start"] == 10.0
     assert clips[1]["end"] == 50.0
+
+
+def test_captions_default_off():
+    assert DEFAULT_CONFIG["render"]["burn_captions"] is False
+    assert _should_burn_captions({}) is False
+    assert _should_burn_captions({"burn_captions": False}) is False
+    assert _should_burn_captions({"burn_captions": True}) is True

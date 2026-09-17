@@ -44,6 +44,11 @@ def _clips_from_plan(plan: dict) -> list[dict]:
     return clips
 
 
+def _should_burn_captions(rcfg: dict) -> bool:
+    """Reel renders default to no burned captions; plan caption blocks are ignored."""
+    return bool(rcfg.get("burn_captions", False))
+
+
 def _resolve_source_video(source: Path, plan_path: Path) -> Path:
     if source.exists():
         return source.resolve()
@@ -115,15 +120,13 @@ def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
         joined = temp / "joined.mp4"
         run([ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", str(joined)])
 
-        burn = bool(plan.get("captions", {}).get("enabled", rcfg.get("burn_captions", True)))
-        if burn:
+        if _should_burn_captions(rcfg):
             srt = temp / f"{reel_id}.srt"
             build_rebased_srt(transcript, clips, srt)
-            font = plan.get("captions", {}).get("font", rcfg.get("subtitle_font", "Tahoma"))
-            font_size = int(plan.get("captions", {}).get("font_size", rcfg.get("subtitle_font_size", 18)))
-            margin_v = int(plan.get("captions", {}).get("margin_v", rcfg.get("subtitle_margin_v", 110)))
-            outline = int(plan.get("captions", {}).get("outline", rcfg.get("subtitle_outline", 2)))
-            # Escape backslashes/colons for ffmpeg's subtitles filter.
+            font = rcfg.get("subtitle_font", "Tahoma")
+            font_size = int(rcfg.get("subtitle_font_size", 18))
+            margin_v = int(rcfg.get("subtitle_margin_v", 110))
+            outline = int(rcfg.get("subtitle_outline", 2))
             sub_path = str(srt.resolve()).replace("\\", "/").replace(":", "\\:")
             style = f"FontName={font},FontSize={font_size},Alignment=2,MarginV={margin_v},Outline={outline},Shadow=0"
             sub_filter = f"subtitles='{sub_path}':charenc='UTF-8':force_style='{style}'"
@@ -137,6 +140,7 @@ def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
                 str(final_path),
             ])
         else:
+            print("[captions] disabled")
             run([
                 ffmpeg, "-y", "-i", str(joined),
                 "-af", f"loudnorm=I={rcfg.get('loudness_target_lufs', -16)}:TP=-1.5:LRA=11",
