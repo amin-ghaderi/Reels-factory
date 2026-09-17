@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+config.yaml
+# Keep folder structure, ignore working media/output
+data/inbox/*
+!data/inbox/.gitkeep
+data/transcripts/*
+!data/transcripts/.gitkeep
+data/candidates/*
+!data/candidates/.gitkeep
+data/edit_plans/*
+!data/edit_plans/.gitkeep
+data/output/*
+!data/output/.gitkeep
+data/approved/*
+!data/approved/.gitkeep
+data/rejected/*
+!data/rejected/.gitkeep
+data/refined_transcripts/*
+!data/refined_transcripts/.gitkeep

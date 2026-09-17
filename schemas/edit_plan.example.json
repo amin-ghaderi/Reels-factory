@@ -1,0 +1,28 @@
+{
+  "reel_id": "reel_001",
+  "source_video": "data/inbox/episode_001.mp4",
+  "candidate_id": "C03",
+  "headline": "یک هوک کوتاه برای روی ویدئو",
+  "hook": {
+    "enabled": true,
+    "start": 907.2,
+    "end": 912.7,
+    "reason": "Strong payoff line used as a cold open"
+  },
+  "body": {
+    "start": 880.0,
+    "end": 934.0
+  },
+  "avoid_hook_repeat": true,
+  "captions": {
+    "enabled": true,
+    "font": "Tahoma",
+    "font_size": 18,
+    "margin_v": 110,
+    "outline": 2
+  },
+  "notes": [
+    "V1 uses center crop. Face tracking will be added in V2.",
+    "Do not publish automatically."
+  ]
+}
