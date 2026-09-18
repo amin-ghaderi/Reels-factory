@@ -8,10 +8,11 @@ from pathlib import Path
 from reels_factory.ai_normalizer import normalize_transcript
 from reels_factory.config import load_config
 from reels_factory.cursor_ai import CursorAIError
+from reels_factory.make_reels import make_reels
 from reels_factory.pipeline import preprocess_video
+from reels_factory.program_map import map_program
 from reels_factory.refine import parse_refine_request, refine_window, refine_windows
 from reels_factory.render import render_reel, resolve_transcript_for_plan
-from reels_factory.program_map import map_program
 from reels_factory.semantic_editor import semantic_edit
 from reels_factory.utils import parse_timestamp, read_json
 
@@ -199,6 +200,17 @@ def cmd_map_program(args):
     }, ensure_ascii=False, indent=2))
 
 
+def cmd_make_reels(args):
+    cfg = load_config(ROOT, Path(args.config) if args.config else None)
+    video = Path(args.video)
+    try:
+        result = make_reels(video, cfg, root=ROOT, force=args.force)
+    except CursorAIError as exc:
+        print(f"[make-reels] FAILED — existing local workflow is unchanged. {exc}")
+        raise SystemExit(1) from exc
+    print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+
+
 def cmd_render_semantic(args):
     cfg = load_config(ROOT, Path(args.config) if args.config else None)
     plan = Path(args.plan)
@@ -269,6 +281,11 @@ def build_parser():
     mp.add_argument("--video", required=True)
     mp.add_argument("--force", action="store_true")
     mp.set_defaults(func=cmd_map_program)
+
+    mr = sub.add_parser("make-reels", help="Whisper → normalize → program map → Q&A Reel Editor → stacked_faces MP4")
+    mr.add_argument("--video", required=True)
+    mr.add_argument("--force", action="store_true", help="Redo AI stages (normalize, map, Q&A editor) and re-render")
+    mr.set_defaults(func=cmd_make_reels)
 
     rs = sub.add_parser("render-semantic", help="Render a multi-segment semantic plan (no captions)")
     rs.add_argument("--plan", required=True)

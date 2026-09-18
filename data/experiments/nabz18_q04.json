@@ -1,0 +1,59 @@
+{
+  "reel_id": "nabz18_q04",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "source_unit": "Q04",
+  "title": "Q04 — nuclear file concession vs escalation",
+  "editorial_summary": "Experimental Q&A Reel from program-map unit Q04 only. Chronological. No cold open. Guest hedge/setup dropped; claim kept at spoken strength (not zero, very low).",
+  "open_loop": "Will the Islamic Republic concede on the nuclear file, or raise nuclear and regional tension?",
+  "hook_used": false,
+  "hook_rationale": "The strongest authentic line is 00:16:18.960–00:16:24.320 (will not declare a nuclear capability). Cold-opening on it answers one limb before the host's concede-vs-escalate question is heard, and it would play as a weapons headline without that frame. Chronological Q→A is clearer.",
+  "strongest_authentic_hook_not_used_as_open": {
+    "start": "00:16:18.960",
+    "end": "00:16:24.320",
+    "used_as": "central_answer"
+  },
+  "removed": [
+    "00:16:06.460–00:16:18.960 guest filler: sensitive/complex question that needs a long setup; ASR-garbled lead-in before the actual stance"
+  ],
+  "playback_check": {
+    "subject_clear": true,
+    "answers_the_question": true,
+    "qualifications_kept": "will not declare nuclear capability; compromise in the present situation is not called zero, only very low. Does not invent an escalation choice.",
+    "repetition": false,
+    "ending_complete": true,
+    "simulated_transcript": "در باب پرونده هسته‌ای، با ارجاع عدم پایبندی ایران به شورای امنیت و افزایش فشار بر تهران، جمهوری اسلامی اکنون در مقابل یک انتخاب مهم قرار گرفته. به نظر شما دولت بیشتر به عقب‌نشینی و دادن امتیاز خواهد رفت، یا ممکنه با بالا بردن سطح تنش هسته‌ای و منطقه‌ای تلاش کنه قدرت چانه‌زنی خود را افزایش بده. با فکرم که جمهوری اسلامی هسته‌ایش رو اعلام نخواهد کرد. این غیرممکنه که در مورد مسئله هسته‌ای جمهوری اسلامی در وضعیت کنونی به سمت سازش بره. در واقع احتمالش نمی‌گم صفره، احتمالش بسیار پایین."
+  },
+  "segments": [
+    {
+      "start": "00:15:31.540",
+      "end": "00:16:04.180",
+      "role": "question_core",
+      "text": "در باب پرونده هسته‌ای با ارجاع موضوع عدم پایبندی ایران به شورای امنیت و افزایش فشار بر تهران جمهوری اسلامی اکنون در مقابل یک انتخاب مهم قرار گرفته به نظر شما دولت بیشتر به عقب‌نشینی و دادن امتیاز خواهد رفت یا ممکنه با بالا بردن سطح تنش هسته‌ای و منطقهی تلاش کنه قدرت چانزانی خود افزایش بده",
+      "why": "Full host question: nuclear-file/UNSC premise plus the concede-or-escalate or-question. T03 clock-check is already outside this span. No extra padding to cut without losing the choice."
+    },
+    {
+      "start": "00:16:18.960",
+      "end": "00:16:24.320",
+      "role": "central_answer",
+      "text": "با فکرم که جمهوری اسلامی هسته‌ایش رو اعلام نخواهد کرد",
+      "why": "Guest's first actual stance: IRI will not declare a nuclear capability. Starts at mapped answer core, after the setup hedge."
+    },
+    {
+      "start": "00:16:24.320",
+      "end": "00:16:34.040",
+      "role": "reasoning",
+      "text": "این غیرممکنه که در مورد مسئله هسته‌ای جمهوری اسلامی در وضعیت کنونی به سمت سازش بره",
+      "why": "Answers the concession limb: in the present situation they will not move toward compromise. Kept as spoken; the next clip immediately qualifies 'impossible'."
+    },
+    {
+      "start": "00:16:34.040",
+      "end": "00:16:38.880",
+      "role": "payoff",
+      "text": "در واقع احتمالش نمی‌گم صفره احتمالش بسیار پایین",
+      "why": "Natural payoff and required qualification: probability is not zero, it is very low. Complete thought; host Q05 starts after a pause."
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high",
+  "estimated_duration_s": 52.56
+}

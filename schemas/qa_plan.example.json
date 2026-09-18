@@ -1,0 +1,48 @@
+{
+  "reel_id": "show_qa_Q04",
+  "source_video": "data/inbox/show.mp4",
+  "source_unit": "Q04",
+  "title": "Short faithful title",
+  "editorial_summary": "One Q&A unit, chronological, no forced hook.",
+  "open_loop": "What is being asked?",
+  "hook_used": false,
+  "hook_rationale": "Chronological Q→A is clearer for a first-time viewer.",
+  "removed": ["host padding / guest setup hedge"],
+  "playback_check": {
+    "subject_clear": true,
+    "answers_the_question": true,
+    "qualifications_kept": "uncertainty preserved",
+    "repetition": false,
+    "ending_complete": true,
+    "simulated_transcript": "question. central answer. needed reasoning. qualified payoff."
+  },
+  "segments": [
+    {
+      "start": "00:15:31.540",
+      "end": "00:16:04.180",
+      "role": "question_core",
+      "why": "Minimum question a new viewer needs"
+    },
+    {
+      "start": "00:16:18.960",
+      "end": "00:16:24.320",
+      "role": "central_answer",
+      "why": "Guest's actual stance"
+    },
+    {
+      "start": "00:16:24.320",
+      "end": "00:16:34.040",
+      "role": "reasoning",
+      "why": "Needed to understand the stance"
+    },
+    {
+      "start": "00:16:34.040",
+      "end": "00:16:38.880",
+      "role": "payoff",
+      "why": "Complete qualified conclusion"
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high",
+  "estimated_duration_s": 52.56
+}

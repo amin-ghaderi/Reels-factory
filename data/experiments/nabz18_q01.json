@@ -1,0 +1,62 @@
+{
+  "reel_id": "nabz18_q01",
+  "source_video": "data/inbox/nabz-18.mp4",
+  "source_unit": "Q01",
+  "title": "Q01 — guild protests vs broader uprising",
+  "editorial_summary": "Experimental Q&A Reel from program-map unit Q01 only. Chronological. No cold open. Answer is interrupted in source; reel ends on the last complete qualified claim, not the host cut-off.",
+  "open_loop": "Are current guild protests scattered, or a broader political-social movement?",
+  "hook_used": false,
+  "hook_rationale": "The strongest authentic line is the central answer at 00:03:39–00:03:57 (signals of a soon, much broader civic uprising). Cold-opening on it would answer before the host's two-limb or-question is heard. 00:06:45 energy-toward-uprising depends on the timing qualification immediately before it. Chronological Q→A is clearer for a first-time viewer.",
+  "strongest_authentic_hook_not_used_as_open": {
+    "start": "00:03:39.360",
+    "end": "00:03:57.180",
+    "used_as": "central_answer"
+  },
+  "removed": [
+    "00:03:03.930–00:03:12.910 host restart / 'سوال اول' padding before the actual question",
+    "00:03:57.180–00:05:28.560 guild-list restatement plus 1401/Dey/Ahvaz/Isfahan/bazaar examples of the same precursor claim",
+    "00:05:52.200–00:06:25.860 Goldstone/earthquake timing lecture; ASR-weak and restated cleanly in the next span",
+    "00:06:45.480–00:07:24.060 security-organ crackdown warning; trails into host interrupt (Q02 pivot)"
+  ],
+  "playback_check": {
+    "subject_clear": true,
+    "answers_the_question": true,
+    "qualifications_kept": "guest does not name a month; uprising is framed as signals/energy gathering, not a dated prediction",
+    "repetition": false,
+    "ending_complete": true,
+    "simulated_transcript": "وقتی اعتراض‌های کارگران جمع بازنشستگان… آیا اعتراض‌های پراکنده و صنفی هستند، یا نشانه‌هایی که نارسایی‌ها به یک حرکت گسترده‌تر سیاسی و اجتماعی تبدیل شده. من فکر می‌کنم سیگنال‌ها می‌گن که به‌زودی شاهد یک خیزش مدنی بسیار گسترده‌تر خواهیم بود. چون جمهوری اسلامی عادت به حل مسائل نداره؛ مسائل انباشت می‌شن؛ وضعیت معیشتی و سیاسی به مراتب بدتر شده. اما نمی‌تونیم زمان دقیقش رو بگیم که آذر یا آبان یا حتی زودتر. ما سیگنال‌ها رو می‌بینیم که این انرژی داره تجمیع می‌شه و به سمت خیزش حرکت می‌کنه."
+  },
+  "segments": [
+    {
+      "start": "00:03:12.910",
+      "end": "00:03:37.470",
+      "role": "question_core",
+      "text": "وقتی اعتراض‌های کارگران جمع بازنشستگان و گروه‌های مختلف اجتماعی را که در فشار شدید اقتصادی قرار داده، آیا با مجموعه‌ای از اعتراض‌های پراکنده و صنفی و گروه هستند، یا نشانه‌های وجود دارد که این نارسایی‌ها به یک حرکت گسترده‌تر سیاسی و اجتماعی تبدیل شده.",
+      "why": "Host or-question plus the missing closing clause that lives in Whisper id 75 (سیاسی و اجتماعی تبدیل شده). Drops 'سوال اول / آقای دکتر زمانی' padding."
+    },
+    {
+      "start": "00:03:39.360",
+      "end": "00:03:57.180",
+      "role": "central_answer",
+      "text": "من فکر می‌کنم که در شرایط فعلی سیگنال‌ها و نشانه‌ها دارند به ما می‌گن که به‌زودی شاهد یک خیزش مدنی بسیار بسیار گسترده‌تر خواهیم بود.",
+      "why": "Guest's central answer to the or-question. Ends at the first complete sentence of id 76 so the following guild-name list is not a second start."
+    },
+    {
+      "start": "00:05:28.560",
+      "end": "00:05:52.200",
+      "role": "reasoning",
+      "text": "چون جمهوری اسلامی به طور کلی عادت به حل مسائل نداره. به انباشت مسائل به شکل لایه‌ای در جامعه باقی می‌مونه هیچ‌کدوم از مشکلات جامعه حل نشده. وضعیت معیشتی بهتر نشده که به مراتب بدتر شده وضعیت سیاسی بهتر نشده به مراتب بدتر شده.",
+      "why": "Minimum causal chain: problems are not solved, they stack, livelihood and politics are worse. Explains why the energy in the payoff is gathering. 'چون' still reads as the reason for the uprising claim after dropping the 1401 examples."
+    },
+    {
+      "start": "00:06:25.860",
+      "end": "00:06:45.480",
+      "role": "payoff",
+      "text": "اما اگر چه ما نمی‌تونیم زمان دقیقش رو بگیم که مثلاً در آذرماه یا در آبان‌ماه یا حتی زودتر. ما داریم سیگنال‌ها رو می‌بینیم که این انرژی داره تجمیع می‌شه و داره به سمت خیزش حرکت می‌کنه.",
+      "why": "Keeps the timing-unpredictable qualification and ends on a complete thought. Does not use the interrupted 00:07:24 host cut as a fake close."
+    }
+  ],
+  "avoid_hook_repeat": true,
+  "context_integrity": "high",
+  "estimated_duration_s": 85.64
+}

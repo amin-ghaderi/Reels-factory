@@ -17,6 +17,7 @@ DEFAULT_CONFIG = {
         "normalized_transcripts": "data/normalized_transcripts",
         "semantic_plans": "data/semantic_plans",
         "program_maps": "data/program_maps",
+        "qa_plans": "data/qa_plans",
     },
     "transcription": {
         "model": "small",
@@ -82,6 +83,10 @@ DEFAULT_CONFIG = {
             "model": "grok-4.6",
             "reasoning": "high",
             "full_transcript": True,
+        },
+        "qa_reel_editor": {
+            "model": "grok-4.6",
+            "reasoning": "high",
         },
         "max_reels": None,
     },

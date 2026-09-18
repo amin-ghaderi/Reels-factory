@@ -26,3 +26,5 @@ data/semantic_plans/*
 !data/semantic_plans/.gitkeep
 data/program_maps/*
 !data/program_maps/.gitkeep
+data/qa_plans/*
+!data/qa_plans/.gitkeep

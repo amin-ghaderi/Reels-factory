@@ -22,6 +22,7 @@ REQUIRED_FOLDERS = (
     "normalized_transcripts",
     "semantic_plans",
     "program_maps",
+    "qa_plans",
 )
 WRITABLE_FOLDERS = (
     "transcripts",
@@ -35,6 +36,7 @@ WRITABLE_FOLDERS = (
     "normalized_transcripts",
     "semantic_plans",
     "program_maps",
+    "qa_plans",
 )
 
 
