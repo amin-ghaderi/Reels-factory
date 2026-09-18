@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
         "semantic_plans": "data/semantic_plans",
         "program_maps": "data/program_maps",
         "qa_plans": "data/qa_plans",
+        "metadata": "data/metadata",
     },
     "transcription": {
         "model": "small",
@@ -56,6 +57,7 @@ DEFAULT_CONFIG = {
         "subtitle_margin_v": 110,
         "subtitle_outline": 2,
         "layout": "stacked_faces",
+        "lock_face_crops": True,
         "face_sample_interval": 0.5,
         "face_score_threshold": 0.55,
         "face_min_size": 40,

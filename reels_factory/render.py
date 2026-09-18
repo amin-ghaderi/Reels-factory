@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .faces import LayoutPlan, plan_clip_layout
+from .faces import LayoutPlan, plan_clip_layout, plan_locked_layout
 from .plan_validate import plan_has_segments, validate_semantic_plan
 from .subtitles import build_rebased_srt
 from .utils import parse_timestamp, read_json, require_binary, run
@@ -103,7 +103,57 @@ def resolve_transcript_for_plan(plan_path: Path, plan: dict, cfg: dict) -> Path:
     )
 
 
-def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
+def _lock_crops_for_reel(rcfg: dict, clips: list[dict]) -> bool:
+    requested = str(rcfg.get("layout", "stacked_faces")).strip().lower()
+    if requested not in {"stacked_faces", "single_face"}:
+        return False
+    if not bool(rcfg.get("lock_face_crops", True)):
+        return False
+    return len(clips) > 1
+
+
+def _print_locked_crops(layout: LayoutPlan) -> None:
+    if layout.panel_a is not None:
+        p = layout.panel_a
+        print(
+            f"[layout] Person A safe ROI "
+            f"x={p.x:.1f} y={p.y:.1f} w={p.w:.1f} h={p.h:.1f}"
+        )
+    if layout.panel_b is not None:
+        p = layout.panel_b
+        print(
+            f"[layout] Person B safe ROI "
+            f"x={p.x:.1f} y={p.y:.1f} w={p.w:.1f} h={p.h:.1f}"
+        )
+    if layout.safety_margin:
+        print(f"[layout] panel safety margin={layout.safety_margin:.0%}")
+    if layout.top is not None:
+        t = layout.top
+        print(
+            f"[layout] locked Person A/top crop "
+            f"x={t.x:.1f} y={t.y:.1f} w={t.w:.1f} h={t.h:.1f}"
+        )
+    if layout.bottom is not None:
+        b = layout.bottom
+        print(
+            f"[layout] locked Person B/bottom crop "
+            f"x={b.x:.1f} y={b.y:.1f} w={b.w:.1f} h={b.h:.1f}"
+        )
+    if layout.single is not None and layout.top is None:
+        s = layout.single
+        print(
+            f"[layout] locked single crop "
+            f"x={s.x:.1f} y={s.y:.1f} w={s.w:.1f} h={s.h:.1f}"
+        )
+
+
+def render_reel(
+    plan_path: Path,
+    transcript_path: Path,
+    cfg: dict,
+    *,
+    output_path: Path | None = None,
+) -> Path:
     ffmpeg = require_binary("ffmpeg")
     plan = read_json(plan_path)
     transcript = read_json(transcript_path)
@@ -126,19 +176,38 @@ def render_reel(plan_path: Path, transcript_path: Path, cfg: dict) -> Path:
     output_dir = Path(cfg["paths"]["output"])
     output_dir.mkdir(parents=True, exist_ok=True)
     reel_id = plan.get("reel_id") or plan_path.stem
-    final_path = output_dir / f"{reel_id}.mp4"
+    final_path = Path(output_path) if output_path else (output_dir / f"{reel_id}.mp4")
+    final_path.parent.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="reels_factory_") as td:
         temp = Path(td)
         parts = []
         layouts: list[LayoutPlan] = []
+        locked_layout: LayoutPlan | None = None
+        if _lock_crops_for_reel(rcfg, clips):
+            locked_layout = plan_locked_layout(
+                source,
+                [(clip["start"], clip["end"]) for clip in clips],
+                rcfg,
+            )
+            print(
+                f"[layout] locked crops for all {len(clips)} clips "
+                f"mode={locked_layout.mode} method={locked_layout.method} "
+                f"avg_faces={locked_layout.avg_faces:.2f} "
+                f"samples={len(locked_layout.face_counts)}"
+            )
+            _print_locked_crops(locked_layout)
         for idx, clip in enumerate(clips):
-            layout = plan_clip_layout(source, clip["start"], clip["end"], rcfg)
+            if locked_layout is not None:
+                layout = locked_layout
+            else:
+                layout = plan_clip_layout(source, clip["start"], clip["end"], rcfg)
             layouts.append(layout)
             print(
                 f"[layout] clip={clip['label']} mode={layout.mode} "
                 f"method={layout.method} avg_faces={layout.avg_faces:.2f} "
-                f"samples={len(layout.face_counts)}"
+                f"samples={len(layout.face_counts)} "
+                f"locked={'yes' if locked_layout is not None else 'no'}"
             )
             part = temp / f"part_{idx:02d}.mp4"
             run([

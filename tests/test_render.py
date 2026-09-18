@@ -1,5 +1,5 @@
 from reels_factory.config import DEFAULT_CONFIG
-from reels_factory.render import _clips_from_plan, _should_burn_captions
+from reels_factory.render import _clips_from_plan, _lock_crops_for_reel, _should_burn_captions
 
 
 def test_cold_open_omits_repeated_hook():
@@ -72,3 +72,14 @@ def test_captions_default_off():
     assert _should_burn_captions({}) is False
     assert _should_burn_captions({"burn_captions": False}) is False
     assert _should_burn_captions({"burn_captions": True}) is True
+
+
+def test_lock_crops_for_multi_segment_stacked_faces():
+    clips = [
+        {"label": "question_core", "start": 10.0, "end": 20.0},
+        {"label": "payoff", "start": 40.0, "end": 50.0},
+    ]
+    assert _lock_crops_for_reel({"layout": "stacked_faces"}, clips) is True
+    assert _lock_crops_for_reel({"layout": "stacked_faces", "lock_face_crops": False}, clips) is False
+    assert _lock_crops_for_reel({"layout": "stacked_faces"}, clips[:1]) is False
+    assert DEFAULT_CONFIG["render"]["lock_face_crops"] is True

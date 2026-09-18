@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 YUNET_URL = (
     "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/"
@@ -24,6 +25,7 @@ class BBox:
     w: float
     h: float
     score: float = 1.0
+    landmarks: tuple[tuple[float, float], ...] | None = None
 
     @property
     def cx(self) -> float:
@@ -63,6 +65,9 @@ class LayoutPlan:
     top: BBox | None = None
     bottom: BBox | None = None
     single: BBox | None = None
+    panel_a: BBox | None = None
+    panel_b: BBox | None = None
+    safety_margin: float = 0.0
 
 
 def _even(value: float, minimum: int = 2) -> int:
@@ -149,6 +154,15 @@ def face_crop_params(rcfg: dict | None = None) -> dict:
         "headroom": float(raw.get("headroom", 0.38)),
         "horizontal_margin": float(raw.get("horizontal_margin", 0.15)),
         "body": float(raw.get("body", 1.05)),
+        "panel_safety_margin": float(raw.get("panel_safety_margin", 0.04)),
+    }
+
+
+def _face_crop_kwargs(crop_cfg: dict) -> dict:
+    return {
+        key: crop_cfg[key]
+        for key in ("zoom", "headroom", "horizontal_margin", "body")
+        if key in crop_cfg
     }
 
 
@@ -224,6 +238,285 @@ def crop_around_face(
     x0 = min(max(0.0, x0), max(0.0, frame_w - crop_w))
     y0 = min(max(0.0, y0), max(0.0, frame_h - crop_h))
     return BBox(x=x0, y=y0, w=crop_w, h=crop_h, score=face.score)
+
+
+def inset_bbox(box: BBox, margin: float) -> BBox:
+    """Pull every edge inward by `margin` of the panel size (and at least 4px)."""
+    margin = min(0.45, max(0.0, float(margin)))
+    mx = max(4.0, box.w * margin)
+    my = max(4.0, box.h * margin)
+    mx = min(mx, box.w * 0.45)
+    my = min(my, box.h * 0.45)
+    w = max(2.0, box.w - 2.0 * mx)
+    h = max(2.0, box.h - 2.0 * my)
+    return BBox(x=box.x + mx, y=box.y + my, w=w, h=h, score=box.score)
+
+
+def bbox_inside(inner: BBox, outer: BBox, eps: float = 1.0) -> bool:
+    return (
+        inner.x >= outer.x - eps
+        and inner.y >= outer.y - eps
+        and inner.x + inner.w <= outer.x + outer.w + eps
+        and inner.y + inner.h <= outer.y + outer.h + eps
+    )
+
+
+def clamp_bbox_to_roi(box: BBox, roi: BBox, aspect: float) -> BBox:
+    """Shrink a 9:8 crop until it sits entirely inside roi. Never expand."""
+    x0 = max(box.x, roi.x)
+    y0 = max(box.y, roi.y)
+    x1 = min(box.x + box.w, roi.x + roi.w)
+    y1 = min(box.y + box.h, roi.y + roi.h)
+    w = max(2.0, x1 - x0)
+    h = max(2.0, y1 - y0)
+    if w / h > aspect:
+        w = h * aspect
+        cx = min(max(box.cx, roi.x + w / 2.0), roi.x + roi.w - w / 2.0)
+        x0 = cx - w / 2.0
+    else:
+        h = w / aspect
+        cy = min(max(box.cy, roi.y + h / 2.0), roi.y + roi.h - h / 2.0)
+        y0 = cy - h / 2.0
+    x0 = min(max(roi.x, x0), roi.x + roi.w - w)
+    y0 = min(max(roi.y, y0), roi.y + roi.h - h)
+    return BBox(x=x0, y=y0, w=w, h=h, score=box.score)
+
+
+def crop_inside_roi(face: BBox, roi: BBox, aspect: float, **crop_cfg) -> BBox:
+    """Face-centered 9:8 crop that cannot cross the safe ROI boundary."""
+    roi_w = max(2.0, roi.w)
+    roi_h = max(2.0, roi.h)
+    fx = min(max(face.x, roi.x), roi.x + roi_w - 2.0)
+    fy = min(max(face.y, roi.y), roi.y + roi_h - 2.0)
+    fw = min(max(2.0, face.w), roi.x + roi_w - fx)
+    fh = min(max(2.0, face.h), roi.y + roi_h - fy)
+    local_face = BBox(fx - roi.x, fy - roi.y, fw, fh, score=face.score)
+    kwargs = _face_crop_kwargs(crop_cfg)
+    local = crop_around_face(
+        local_face,
+        max(2, int(round(roi_w))),
+        max(2, int(round(roi_h))),
+        aspect,
+        **kwargs,
+    )
+    crop = BBox(local.x + roi.x, local.y + roi.y, local.w, local.h, score=face.score)
+    return clamp_bbox_to_roi(crop, roi, aspect)
+
+
+def _shrink_crop_to_height(crop: BBox, face: BBox, height: float, aspect: float, roi: BBox) -> BBox:
+    height = min(crop.h, max(2.0, height))
+    width = height * aspect
+    if width > roi.w:
+        width = roi.w
+        height = width / aspect
+    x0 = face.cx - width / 2.0
+    y0 = face.y - max(0.0, (height - face.h) * 0.28)
+    if face.x < x0:
+        x0 = face.x
+    if face.x + face.w > x0 + width:
+        x0 = face.x + face.w - width
+    if face.y < y0:
+        y0 = face.y
+    if face.y + face.h > y0 + height:
+        y0 = face.y + face.h - height
+    return clamp_bbox_to_roi(BBox(x0, y0, width, height, crop.score), roi, aspect)
+
+
+def _argmax_range(energy: np.ndarray, lo: float, hi: float) -> tuple[int | None, float]:
+    lo_i = max(0, int(lo))
+    hi_i = min(int(energy.shape[0]), int(hi))
+    if hi_i <= lo_i:
+        return None, 0.0
+    sl = energy[lo_i:hi_i]
+    idx = int(np.argmax(sl))
+    return lo_i + idx, float(sl[idx])
+
+
+def _smooth_1d(energy: np.ndarray, k: int = 11) -> np.ndarray:
+    k = max(3, int(k) | 1)
+    kernel = np.ones(k, dtype=np.float64) / k
+    return np.convolve(energy.astype(np.float64), kernel, mode="same")
+
+
+def _local_maxima(energy: np.ndarray, *, min_frac: float = 0.28, radius: int = 8) -> list[int]:
+    sm = _smooth_1d(energy)
+    peak = float(sm.max()) if sm.size else 0.0
+    if peak <= 1e-6:
+        return []
+    thresh = peak * min_frac
+    peaks: list[int] = []
+    n = int(sm.shape[0])
+    r = max(3, radius)
+    for x in range(r, n - r):
+        window = sm[x - r : x + r + 1]
+        if sm[x] >= float(window.max()) and sm[x] >= thresh:
+            peaks.append(x)
+    return peaks
+
+
+def _sobel_profiles(frames: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    row_acc: np.ndarray | None = None
+    col_acc: np.ndarray | None = None
+    for img in frames:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        sy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+        sx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+        row = np.mean(np.abs(sy), axis=1)
+        col = np.mean(np.abs(sx), axis=0)
+        row_acc = row if row_acc is None else row_acc + row
+        col_acc = col if col_acc is None else col_acc + col
+    n = float(max(1, len(frames)))
+    assert row_acc is not None and col_acc is not None
+    return row_acc / n, col_acc / n
+
+
+def _border_col_energy(frames: list[np.ndarray], top: int, bot: int) -> np.ndarray:
+    acc: np.ndarray | None = None
+    h = int(frames[0].shape[0])
+    for img in frames:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        sx = np.abs(cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3))
+        parts = []
+        for y in (top, bot):
+            y0 = max(0, y - 4)
+            y1 = min(h, y + 5)
+            parts.append(np.mean(sx[y0:y1], axis=0))
+        col = np.mean(np.stack(parts, axis=0), axis=0)
+        acc = col if acc is None else acc + col
+    n = float(max(1, len(frames)))
+    assert acc is not None
+    return acc / n
+
+
+def detect_participant_panels(
+    frames: list[np.ndarray],
+    face_a: BBox,
+    face_b: BBox,
+) -> tuple[BBox, BBox] | None:
+    """Find the two clean source tiles of a graphic split-screen.
+
+    Returns None when the frame is not a framed split (full-bleed two-shot),
+    so callers can keep the existing full-frame crop.
+    """
+    if not frames:
+        return None
+    frame_h, frame_w = frames[0].shape[:2]
+    row_e, col_e = _sobel_profiles(frames)
+    top, top_e = _argmax_range(row_e, 0.08 * frame_h, 0.45 * frame_h)
+    bot, bot_e = _argmax_range(row_e, 0.55 * frame_h, 0.92 * frame_h)
+    if top is None or bot is None or bot - top < 0.22 * frame_h:
+        return None
+    median_row = float(np.median(row_e))
+    if top_e < median_row * 1.8 or bot_e < median_row * 1.8:
+        return None
+
+    split, split_e = _argmax_range(col_e, 0.38 * frame_w, 0.62 * frame_w)
+    median_col = float(np.median(col_e))
+    if split is None or split_e < median_col * 2.0:
+        return None
+    left_face, right_face = (face_a, face_b) if face_a.cx <= face_b.cx else (face_b, face_a)
+    if not (left_face.cx < split < right_face.cx):
+        return None
+
+    border_col = _border_col_energy(frames, top, bot)
+    peaks = _local_maxima(border_col, min_frac=0.28, radius=8)
+    left_outer = max((x for x in peaks if x < left_face.x), default=0)
+    right_outer = min((x for x in peaks if x > right_face.x + right_face.w), default=frame_w - 1)
+    # Inner walls are the peaks nearest the center split, not features inside the face.
+    left_inner = min((x for x in peaks if left_face.cx < x <= split), default=split)
+    right_inner = min((x for x in peaks if split <= x < right_face.cx), default=split)
+
+    if left_inner - left_outer < 0.12 * frame_w or right_outer - right_inner < 0.12 * frame_w:
+        return None
+    panel_h = float(bot - top)
+    panel_a = BBox(float(left_outer), float(top), float(left_inner - left_outer), panel_h)
+    panel_b = BBox(float(right_inner), float(top), float(right_outer - right_inner), panel_h)
+    if left_face.cx < right_face.cx:
+        return panel_a, panel_b
+    return panel_b, panel_a
+
+
+_YELLOW_LO = (12, 60, 60)
+_YELLOW_HI = (45, 255, 255)
+
+
+def crop_edge_yellow_fraction(frame: np.ndarray, crop: BBox, edge: str, strip_frac: float = 0.05) -> float:
+    h_img, w_img = frame.shape[:2]
+    x0 = max(0, int(round(crop.x)))
+    y0 = max(0, int(round(crop.y)))
+    x1 = min(w_img, int(round(crop.x + crop.w)))
+    y1 = min(h_img, int(round(crop.y + crop.h)))
+    if x1 <= x0 or y1 <= y0:
+        return 1.0
+    roi = frame[y0:y1, x0:x1]
+    rh, rw = roi.shape[:2]
+    strip_h = max(2, int(round(rh * strip_frac)))
+    strip_w = max(2, int(round(rw * strip_frac)))
+    if edge == "bottom":
+        strip = roi[-strip_h:]
+    elif edge == "top":
+        strip = roi[:strip_h]
+    elif edge == "left":
+        strip = roi[:, :strip_w]
+    else:
+        strip = roi[:, -strip_w:]
+    hsv = cv2.cvtColor(strip, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, _YELLOW_LO, _YELLOW_HI)
+    return float(mask.mean()) / 255.0
+
+
+def crop_has_outside_panel_pixels(
+    crop: BBox,
+    panel: BBox,
+    frames: list[np.ndarray],
+    *,
+    max_yellow: float = 0.40,
+) -> bool:
+    if not bbox_inside(crop, panel, eps=1.0):
+        return True
+    for frame in frames:
+        # Film-strip / lower-third chrome below a tile is overwhelmingly yellow.
+        # Warm skin or studio light is not; keep this threshold high.
+        if crop_edge_yellow_fraction(frame, crop, "bottom") > max_yellow:
+            return True
+    return False
+
+
+def _sample_times(windows: list[tuple[float, float]], count: int = 8) -> list[float]:
+    spans = [(s, e, max(0.0, e - s)) for s, e in windows]
+    total = sum(d for _, _, d in spans) or 1.0
+    times: list[float] = []
+    for i in range(max(1, count)):
+        t_rel = (i + 0.5) / max(1, count) * total
+        acc = 0.0
+        placed = False
+        for start, _end, dur in spans:
+            if acc + dur >= t_rel:
+                times.append(start + (t_rel - acc))
+                placed = True
+                break
+            acc += dur
+        if not placed:
+            times.append(windows[-1][1])
+    return times
+
+
+def read_frames_at(video: Path, times: list[float]) -> list[np.ndarray]:
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video for panel sampling: {video}")
+    frames: list[np.ndarray] = []
+    try:
+        for t in times:
+            cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, t) * 1000.0)
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                frames.append(frame)
+    finally:
+        cap.release()
+    return frames
 
 
 def _ffmpeg_crop(box: BBox, frame_w: int, frame_h: int) -> str:
@@ -328,6 +621,11 @@ class CachedYunet:
                 w=float(row[2]),
                 h=float(row[3]),
                 score=float(row[-1]),
+                landmarks=tuple(
+                    (float(row[4 + 2 * i]), float(row[5 + 2 * i])) for i in range(5)
+                )
+                if len(row) >= 15
+                else None,
             )
             for row in faces
         ]
@@ -421,6 +719,34 @@ def confident_tracks(
     return kept[:2]
 
 
+def _stacked_crops(
+    face_a: BBox,
+    face_b: BBox,
+    frame_w: int,
+    frame_h: int,
+    aspect: float,
+    crop_cfg: dict,
+    panels: tuple[BBox, BBox] | None,
+) -> tuple[BBox, BBox, BBox | None, BBox | None, float]:
+    face_kwargs = _face_crop_kwargs(crop_cfg)
+    margin = float(crop_cfg.get("panel_safety_margin", 0.03))
+    if panels is None:
+        top = crop_around_face(face_a, frame_w, frame_h, aspect, **face_kwargs)
+        bottom = crop_around_face(face_b, frame_w, frame_h, aspect, **face_kwargs)
+        return top, bottom, None, None, 0.0
+    panel_a, panel_b = panels
+    safe_a = inset_bbox(panel_a, margin)
+    safe_b = inset_bbox(panel_b, margin)
+    top = crop_inside_roi(face_a, safe_a, aspect, **face_kwargs)
+    bottom = crop_inside_roi(face_b, safe_b, aspect, **face_kwargs)
+    target_h = min(top.h, bottom.h)
+    if top.h > target_h * 1.08:
+        top = _shrink_crop_to_height(top, face_a, target_h, aspect, safe_a)
+    if bottom.h > target_h * 1.08:
+        bottom = _shrink_crop_to_height(bottom, face_b, target_h, aspect, safe_b)
+    return top, bottom, safe_a, safe_b, margin
+
+
 def decide_layout(
     tracks: list[FaceTrack],
     frame_w: int,
@@ -435,6 +761,7 @@ def decide_layout(
     method: str = "opencv_yunet",
     face_counts: list[int] | None = None,
     crop: dict | None = None,
+    panels: tuple[BBox, BBox] | None = None,
 ) -> LayoutPlan:
     counts = face_counts or []
     avg = (sum(counts) / len(counts)) if counts else 0.0
@@ -454,8 +781,15 @@ def decide_layout(
         boxes = [b for b in boxes if b is not None]
         if len(boxes) >= 2:
             boxes.sort(key=lambda b: b.cx)
-            top = crop_around_face(boxes[0], frame_w, frame_h, half_aspect, **crop_cfg)
-            bottom = crop_around_face(boxes[1], frame_w, frame_h, half_aspect, **crop_cfg)
+            top, bottom, panel_a, panel_b, margin = _stacked_crops(
+                boxes[0],
+                boxes[1],
+                frame_w,
+                frame_h,
+                half_aspect,
+                crop_cfg,
+                panels,
+            )
             return LayoutPlan(
                 mode="stacked_faces",
                 filter_complex=stacked_faces_filter(top, bottom, frame_w, frame_h, width, height, fps),
@@ -464,6 +798,9 @@ def decide_layout(
                 avg_faces=avg,
                 top=top,
                 bottom=bottom,
+                panel_a=panel_a,
+                panel_b=panel_b,
+                safety_margin=margin,
             )
         if len(boxes) == 1:
             chosen = [FaceTrack(boxes=[boxes[0]])]
@@ -556,6 +893,202 @@ def sample_clip_faces(
     return samples, method_used, frame_w, frame_h
 
 
+def plan_locked_layout(
+    video: Path,
+    windows: list[tuple[float, float]],
+    rcfg: dict,
+) -> LayoutPlan:
+    """Sample every window, then freeze one pair of crops for the whole Reel."""
+    if not windows:
+        raise ValueError("plan_locked_layout needs at least one time window")
+    width = int(rcfg.get("width", 1080))
+    height = int(rcfg.get("height", 1920))
+    fps = int(rcfg.get("fps", 30))
+    interval = float(rcfg.get("face_sample_interval", 0.5))
+    score_threshold = float(rcfg.get("face_score_threshold", 0.55))
+    min_size = float(rcfg.get("face_min_size", 40))
+    min_hit_ratio = float(rcfg.get("face_track_min_hit_ratio", 0.4))
+    alpha = float(rcfg.get("face_smooth_alpha", 0.35))
+    crop_cfg = face_crop_params(rcfg)
+    print(
+        "[layout] face_crop "
+        f"zoom={crop_cfg['zoom']:.2f} headroom={crop_cfg['headroom']:.2f} "
+        f"horizontal_margin={crop_cfg['horizontal_margin']:.2f} body={crop_cfg['body']:.2f} "
+        f"panel_safety_margin={crop_cfg['panel_safety_margin']:.2f}"
+    )
+
+    all_samples: list[list[BBox]] = []
+    method = "none"
+    frame_w = frame_h = 0
+    try:
+        for start, end in windows:
+            samples, method, frame_w, frame_h = sample_clip_faces(
+                video,
+                start,
+                end,
+                interval=interval,
+                score_threshold=score_threshold,
+                min_size=min_size,
+            )
+            all_samples.extend(samples)
+    except Exception as exc:
+        print(f"[faces] locked detection failed ({exc}); falling back to fit_blur")
+        return LayoutPlan(
+            mode="fit_blur",
+            filter_complex=fit_blur_filter(width, height, fps),
+            method="none",
+        )
+    if not all_samples:
+        return LayoutPlan(
+            mode="fit_blur",
+            filter_complex=fit_blur_filter(width, height, fps),
+            method="none",
+        )
+
+    tracks = track_faces(all_samples)
+    counts = [len(s) for s in all_samples]
+    panels, panel_frames = _detect_locked_panels(
+        video, windows, tracks, frame_w, frame_h, min_hit_ratio, min_size, alpha
+    )
+    return _decide_layout_with_panel_validation(
+        tracks,
+        frame_w,
+        frame_h,
+        width=width,
+        height=height,
+        fps=fps,
+        min_hit_ratio=min_hit_ratio,
+        min_size=min_size,
+        smooth_alpha=alpha,
+        method=method,
+        face_counts=counts,
+        crop_cfg=crop_cfg,
+        panels=panels,
+        panel_frames=panel_frames,
+    )
+
+
+def _detect_locked_panels(
+    video: Path,
+    windows: list[tuple[float, float]],
+    tracks: list[FaceTrack],
+    frame_w: int,
+    frame_h: int,
+    min_hit_ratio: float,
+    min_size: float,
+    alpha: float,
+) -> tuple[tuple[BBox, BBox] | None, list]:
+    chosen = confident_tracks(
+        tracks,
+        min_hit_ratio=min_hit_ratio,
+        min_size=min_size,
+        frame_w=frame_w,
+        frame_h=frame_h,
+    )
+    if len(chosen) < 2:
+        return None, []
+    boxes = [stable_track_bbox(t, alpha=alpha) for t in chosen[:2]]
+    boxes = [b for b in boxes if b is not None]
+    if len(boxes) < 2:
+        return None, []
+    boxes.sort(key=lambda b: b.cx)
+    try:
+        panel_frames = read_frames_at(video, _sample_times(windows, 8))
+    except Exception as exc:
+        print(f"[layout] panel detection skipped ({exc})")
+        return None, []
+    if len(panel_frames) < 2:
+        return None, []
+    panels = detect_participant_panels(panel_frames, boxes[0], boxes[1])
+    if panels is None:
+        print("[layout] no split-screen panels; using full-frame crop bounds")
+        return None, panel_frames
+    pa, pb = panels
+    print(
+        f"[layout] Person A panel x={pa.x:.1f} y={pa.y:.1f} w={pa.w:.1f} h={pa.h:.1f}"
+    )
+    print(
+        f"[layout] Person B panel x={pb.x:.1f} y={pb.y:.1f} w={pb.w:.1f} h={pb.h:.1f}"
+    )
+    return panels, panel_frames
+
+
+def _decide_layout_with_panel_validation(
+    tracks: list[FaceTrack],
+    frame_w: int,
+    frame_h: int,
+    *,
+    width: int,
+    height: int,
+    fps: int,
+    min_hit_ratio: float,
+    min_size: float,
+    smooth_alpha: float,
+    method: str,
+    face_counts: list[int],
+    crop_cfg: dict,
+    panels: tuple[BBox, BBox] | None,
+    panel_frames: list,
+) -> LayoutPlan:
+    base_margin = float(crop_cfg.get("panel_safety_margin", 0.03))
+    margins = [base_margin]
+    if panels is not None:
+        extra = [0.04, 0.05]
+        for extra_margin in extra:
+            if extra_margin > base_margin + 1e-6:
+                margins.append(extra_margin)
+        plan = None
+        for margin in margins:
+            attempt = {**crop_cfg, "panel_safety_margin": margin}
+            plan = decide_layout(
+                tracks,
+                frame_w,
+                frame_h,
+                width=width,
+                height=height,
+                fps=fps,
+                min_hit_ratio=min_hit_ratio,
+                min_size=min_size,
+                smooth_alpha=smooth_alpha,
+                method=method,
+                face_counts=face_counts,
+                crop=attempt,
+                panels=panels,
+            )
+            if plan.mode != "stacked_faces" or plan.top is None or plan.bottom is None:
+                return plan
+            dirty_a = crop_has_outside_panel_pixels(plan.top, panels[0], panel_frames)
+            dirty_b = crop_has_outside_panel_pixels(plan.bottom, panels[1], panel_frames)
+            if plan.panel_a is not None:
+                dirty_a = dirty_a or not bbox_inside(plan.top, plan.panel_a)
+            if plan.panel_b is not None:
+                dirty_b = dirty_b or not bbox_inside(plan.bottom, plan.panel_b)
+            if not dirty_a and not dirty_b:
+                print(f"[layout] panel validation: clean (margin={margin:.0%})")
+                return plan
+            print(
+                f"[layout] panel validation found outside-panel pixels "
+                f"(A={'dirty' if dirty_a else 'ok'} B={'dirty' if dirty_b else 'ok'}) "
+                f"at margin={margin:.0%}"
+            )
+        return plan
+    return decide_layout(
+        tracks,
+        frame_w,
+        frame_h,
+        width=width,
+        height=height,
+        fps=fps,
+        min_hit_ratio=min_hit_ratio,
+        min_size=min_size,
+        smooth_alpha=smooth_alpha,
+        method=method,
+        face_counts=face_counts,
+        crop=crop_cfg,
+        panels=None,
+    )
+
+
 def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> LayoutPlan:
     width = int(rcfg.get("width", 1080))
     height = int(rcfg.get("height", 1920))
@@ -573,7 +1106,8 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
     print(
         "[layout] face_crop "
         f"zoom={crop_cfg['zoom']:.2f} headroom={crop_cfg['headroom']:.2f} "
-        f"horizontal_margin={crop_cfg['horizontal_margin']:.2f} body={crop_cfg['body']:.2f}"
+        f"horizontal_margin={crop_cfg['horizontal_margin']:.2f} body={crop_cfg['body']:.2f} "
+        f"panel_safety_margin={crop_cfg['panel_safety_margin']:.2f}"
     )
 
     try:
@@ -595,7 +1129,10 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
 
     tracks = track_faces(samples)
     counts = [len(s) for s in samples]
-    plan = decide_layout(
+    panels, panel_frames = _detect_locked_panels(
+        video, [(start, end)], tracks, frame_w, frame_h, min_hit_ratio, min_size, alpha
+    )
+    plan = _decide_layout_with_panel_validation(
         tracks,
         frame_w,
         frame_h,
@@ -607,7 +1144,9 @@ def plan_clip_layout(video: Path, start: float, end: float, rcfg: dict) -> Layou
         smooth_alpha=alpha,
         method=method,
         face_counts=counts,
-        crop=crop_cfg,
+        crop_cfg=crop_cfg,
+        panels=panels,
+        panel_frames=panel_frames,
     )
     if requested == "single_face" and plan.mode == "stacked_faces" and plan.top is not None:
         # Honor an explicit single-person request without changing detection.
