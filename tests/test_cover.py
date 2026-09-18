@@ -76,6 +76,28 @@ def test_headline_candidates_are_source_faithful():
     assert chosen == cands[0]
 
 
+def test_choose_headline_rejects_sentence_fragments():
+    assert (
+        choose_headline(
+            [
+                "هنوز برای ایران امیدوارم",
+                "کنیم و با هم مسئولیت ساختنش را به دوش بگیریم",
+            ]
+        )
+        == "هنوز برای ایران امیدوارم"
+    )
+    assert (
+        choose_headline(
+            [
+                "بحران آب ایران ریشه‌ای است نه زودگذر",
+                "حال حاضر بحران عمیق و ریشه‌ای و زودگذر هم نیست",
+                "این مثل بانکی نیست که ما بتوانیم هر سالش را",
+            ]
+        )
+        == "بحران آب ایران ریشه‌ای است نه زودگذر"
+    )
+
+
 def test_scale_template_to_cover_size():
     root = Path(__file__).resolve().parents[1]
     import cv2
@@ -109,6 +131,43 @@ def test_cover_crop_stays_inside_guest_panel():
     assert crop.x >= panel.x
     assert crop.x + crop.w <= panel.x + panel.w
     assert crop.y + crop.h <= panel.y + panel.h
+
+
+def test_resolve_cover_font_prefers_vazirmatn():
+    root = Path(__file__).resolve().parents[1]
+    from reels_factory.cover import resolve_cover_font
+
+    _, headline = resolve_cover_font("headline", root=root, size=48)
+    _, name = resolve_cover_font("name", root=root, size=36)
+    _, role = resolve_cover_font("role", root=root, size=28)
+    assert "vazirmatn" in headline.lower()
+    assert "vazirmatn" in name.lower()
+    assert "vazirmatn" in role.lower()
+    assert "extrabold" in headline.lower()
+    assert "semibold" in name.lower() or "semi bold" in name.lower()
+    assert "regular" in role.lower()
+    assert "tahoma" not in headline.lower()
+
+
+def test_portrait_times_skip_cut_edges():
+    from reels_factory.cover import _sample_portrait_times
+
+    times = _sample_portrait_times([(10.0, 20.0), (30.0, 40.0)], step=0.5, edge=0.25)
+    assert min(times) >= 10.25
+    assert max(t for t in times if t < 25) <= 19.75
+    assert all(not (19.76 < t < 30.24) for t in times)
+
+
+def test_score_rejects_face_outside_panel():
+    from reels_factory.cover import score_guest_portrait
+    import numpy as np
+
+    frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+    face = BBox(100, 100, 80, 100, 0.9)
+    safe = BBox(900, 270, 800, 500)
+    details = score_guest_portrait(frame, face, safe, panel=safe)
+    assert details["accepted"] is False
+    assert details["reject_reason"] == "partially_cropped_face"
 
 
 def test_cover_json_schema_keys():

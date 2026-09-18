@@ -20,12 +20,53 @@ from .faces import (
     filter_faces,
     inset_bbox,
     read_frames_at,
+    bbox_inside,
 )
 from .render import _clips_from_plan, _resolve_source_video
-from .utils import parse_timestamp, read_json, ts, write_json
+from .utils import read_json, ts, write_json
 
 GUEST_PANELS = {"top", "bottom"}
 _WORD_RE = re.compile(r"\s+")
+_FONT_EXTS = {".ttf", ".otf", ".ttc"}
+_CUT_EDGE_S = 0.25
+_SAMPLE_STEP_S = 0.12
+
+# Production lock (17-05 covers): Vazirmatn ExtraBold / SemiBold / Regular.
+# Fallbacks are only used if Vazirmatn is missing. Never jump to Tahoma if a
+# modern Persian/Arabic sans is present.
+_FONT_PREF = {
+    "headline": [
+        ("vazirmatn", ("extrabold", "extra bold")),
+        ("shabnam", ("bold", "extrabold")),
+        ("sahel", ("bold", "black")),
+        ("noto sans arabic", ("extrabold", "black", "bold")),
+    ],
+    "name": [
+        ("vazirmatn", ("semibold", "semi bold")),
+        ("shabnam", ("semibold", "bold")),
+        ("sahel", ("semibold", "bold")),
+        ("noto sans arabic", ("semibold", "medium", "bold")),
+    ],
+    "role": [
+        ("vazirmatn", ("regular",)),
+        ("shabnam", ("regular", "medium")),
+        ("sahel", ("regular", "medium")),
+        ("noto sans arabic", ("regular", "medium")),
+    ],
+}
+_VAR_WEIGHT = {
+    "thin": 100,
+    "extralight": 200,
+    "light": 300,
+    "regular": 400,
+    "normal": 400,
+    "medium": 500,
+    "semibold": 600,
+    "demibold": 600,
+    "bold": 700,
+    "extrabold": 800,
+    "black": 900,
+}
 
 
 class CoverError(ValueError):
@@ -197,6 +238,30 @@ def headline_candidates(plan: dict) -> list[str]:
     return out[:3]
 
 
+_INCOMPLETE_FIRST = frozenset({
+    "کنیم",
+    "کنید",
+    "را",
+    "و",
+    "پس",
+    "که",
+    "ولی",
+    "این",
+})
+
+
+def _looks_incomplete(text: str) -> bool:
+    words = _persian_words(text)
+    if not words:
+        return True
+    if words[0] in _INCOMPLETE_FIRST:
+        return True
+    if text.startswith("حال حاضر"):
+        return True
+    last = words[-1]
+    return last in {"را", "که", "و", "اگر"}
+
+
 def choose_headline(candidates: list[str]) -> str:
     if not candidates:
         raise CoverError("No headline candidates")
@@ -205,6 +270,8 @@ def choose_headline(candidates: list[str]) -> str:
         words = _persian_words(text)
         n = len(words)
         points = 0
+        if _looks_incomplete(text):
+            points -= 6
         if 5 <= n <= 10:
             points += 3
         elif 4 <= n <= 12:
@@ -229,6 +296,11 @@ def _guest_windows(plan: dict) -> list[tuple[float, float]]:
     return chosen or [(c["start"], c["end"]) for c in clips]
 
 
+def _all_plan_windows(plan: dict) -> list[tuple[float, float]]:
+    clips = _clips_from_plan(plan)
+    return [(c["start"], c["end"]) for c in clips] or _guest_windows(plan)
+
+
 def _sample_times(windows: list[tuple[float, float]], step: float = 0.33) -> list[float]:
     times: list[float] = []
     for start, end in windows:
@@ -241,6 +313,27 @@ def _sample_times(windows: list[tuple[float, float]], step: float = 0.33) -> lis
     return times
 
 
+def _sample_portrait_times(windows: list[tuple[float, float]], *, step: float = _SAMPLE_STEP_S, edge: float = _CUT_EDGE_S) -> list[float]:
+    """Dense samples, skipping frames next to edit/cut boundaries."""
+    times: list[float] = []
+    for start, end in windows:
+        lo = start + edge
+        hi = end - edge
+        if hi <= lo:
+            times.append((start + end) / 2.0)
+            continue
+        t = lo
+        while t <= hi + 1e-6:
+            times.append(round(t, 3))
+            t += step
+    # unique, sorted
+    out: list[float] = []
+    for t in sorted(times):
+        if not out or abs(t - out[-1]) > 1e-3:
+            out.append(t)
+    return out
+
+
 def _pick_guest_face(faces: list[BBox], panel: str) -> BBox | None:
     if not faces:
         return None
@@ -250,76 +343,253 @@ def _pick_guest_face(faces: list[BBox], panel: str) -> BBox | None:
     return ordered[0]
 
 
-def _eye_score(gray: np.ndarray, face: BBox) -> float:
+def _face_roi(gray: np.ndarray, box: BBox, pad: float = 0.0) -> np.ndarray:
+    x0 = max(0, int(box.x - box.w * pad))
+    y0 = max(0, int(box.y - box.h * pad))
+    x1 = min(gray.shape[1], int(box.x + box.w * (1.0 + pad)))
+    y1 = min(gray.shape[0], int(box.y + box.h * (1.0 + pad)))
+    return gray[y0:y1, x0:x1]
+
+
+def _eye_patches(gray: np.ndarray, face: BBox, scale: float = 0.16) -> list[np.ndarray]:
     if not face.landmarks or len(face.landmarks) < 2:
-        return 0.45
-    scores = []
+        return []
+    patches = []
+    r = max(6, int(round(min(face.w, face.h) * scale)))
     for x, y in face.landmarks[:2]:
-        r = max(4, int(round(min(face.w, face.h) * 0.12)))
         x0, y0 = max(0, int(x - r)), max(0, int(y - r))
         x1, y1 = min(gray.shape[1], int(x + r)), min(gray.shape[0], int(y + r))
         patch = gray[y0:y1, x0:x1]
-        if patch.size < 16:
-            continue
-        scores.append(float(cv2.Laplacian(patch, cv2.CV_64F).var()))
-    if not scores:
-        return 0.45
-    return min(1.0, float(np.mean(scores)) / 180.0)
+        if patch.size >= 16:
+            patches.append(patch)
+    return patches
 
 
-def _eye_lid_contrast(gray: np.ndarray, face: BBox) -> float:
-    """Open eyes usually make the lower half of the eye box brighter than the lid."""
-    if not face.landmarks or len(face.landmarks) < 2:
-        return 0.0
-    vals = []
-    for x, y in face.landmarks[:2]:
-        r = max(6, int(round(min(face.w, face.h) * 0.14)))
-        x0, y0 = max(0, int(x - r)), max(0, int(y - r))
-        x1, y1 = min(gray.shape[1], int(x + r)), min(gray.shape[0], int(y + r))
-        patch = gray[y0:y1, x0:x1]
-        if patch.shape[0] < 8:
-            continue
-        mid = patch.shape[0] // 2
-        vals.append(float(patch[mid:].mean() - patch[:mid].mean()))
-    return float(np.mean(vals)) if vals else 0.0
-
-
-def _frontal_score(face: BBox) -> float:
-    if not face.landmarks or len(face.landmarks) < 3:
-        return 0.5
-    (rx, ry), (lx, ly), (nx, ny) = face.landmarks[0], face.landmarks[1], face.landmarks[2]
-    mid_x = (rx + lx) / 2.0
-    eye_y = (ry + ly) / 2.0
-    offset = abs(nx - mid_x) / max(face.w, 1.0)
-    looking_down = (ny - eye_y) / max(face.h, 1.0)
-    score = 1.0 - min(1.0, offset / 0.18)
-    if looking_down < 0.12:
-        score *= 0.45
-    return max(0.1, score)
-
-
-def _mouth_score(face: BBox) -> float:
-    if not face.landmarks or len(face.landmarks) < 5:
-        return 0.7
-    (x1, y1), (x2, y2) = face.landmarks[3], face.landmarks[4]
-    width = math.hypot(x2 - x1, y2 - y1)
-    ratio = width / max(face.w, 1.0)
-    if 0.26 <= ratio <= 0.42:
-        return 1.0
-    if ratio < 0.18 or ratio > 0.55:
+def _eye_open_score(gray: np.ndarray, face: BBox) -> float:
+    """0..1, higher = both eyes look open. Uses lid contrast + iris structure."""
+    patches = _eye_patches(gray, face, 0.15)
+    if len(patches) < 2:
         return 0.2
-    return 0.6
+    scores = []
+    for patch in patches:
+        mid = patch.shape[0] // 2
+        lid = float(patch[mid:].mean() - patch[:mid].mean())
+        structure = float(cv2.Laplacian(patch, cv2.CV_64F).var())
+        # Open eyes: lower half brighter (iris/glints) and some internal structure.
+        scores.append(0.6 * min(max(lid, 0.0) / 12.0, 1.0) + 0.4 * min(structure / 140.0, 1.0))
+    return float(min(scores))  # both eyes must be open
+
+
+_HAAR_EYES = None
+
+
+def _haar_eye_count(gray: np.ndarray, face: BBox) -> int:
+    global _HAAR_EYES
+    if _HAAR_EYES is None:
+        cascade_path = Path(cv2.data.haarcascades) / "haarcascade_eye_tree_eyeglasses.xml"
+        if not cascade_path.is_file():
+            cascade_path = Path(cv2.data.haarcascades) / "haarcascade_eye.xml"
+        _HAAR_EYES = cv2.CascadeClassifier(str(cascade_path)) if cascade_path.is_file() else False
+    if _HAAR_EYES is False:
+        return 0
+    roi = _face_roi(gray, face, pad=0.05)
+    if roi.size < 64:
+        return 0
+    eyes = _HAAR_EYES.detectMultiScale(roi, scaleFactor=1.08, minNeighbors=3, minSize=(14, 14))
+    return 0 if eyes is None else len(eyes)
+
+
+def _head_pose(face: BBox) -> dict[str, float]:
+    if not face.landmarks or len(face.landmarks) < 3:
+        return {"yaw": 1.0, "pitch": 0.0, "roll": 0.0, "frontal": 0.4}
+    (rx, ry), (lx, ly), (nx, ny) = face.landmarks[0], face.landmarks[1], face.landmarks[2]
+    eye_dx = lx - rx
+    eye_dy = ly - ry
+    eye_dist = max(math.hypot(eye_dx, eye_dy), 1.0)
+    mid_x = (rx + lx) / 2.0
+    mid_y = (ry + ly) / 2.0
+    yaw = (nx - mid_x) / eye_dist
+    pitch = (ny - mid_y) / eye_dist
+    roll = math.degrees(math.atan2(eye_dy, eye_dx))
+    frontal = 1.0
+    frontal *= max(0.0, 1.0 - min(1.0, abs(yaw) / 0.22))
+    frontal *= max(0.0, 1.0 - min(1.0, abs(roll) / 10.0))
+    # Cover stills want the nose just below the eyes — not chin-down, not looking up.
+    if pitch < 0.48 or pitch > 0.78:
+        frontal *= 0.2
+    elif pitch < 0.52 or pitch > 0.70:
+        frontal *= 0.55
+    return {"yaw": yaw, "pitch": pitch, "roll": roll, "frontal": max(0.0, min(1.0, frontal))}
+
+
+def _iris_gaze_score(gray: np.ndarray, face: BBox) -> float:
+    """Estimate camera-facing gaze from iris/pupil position inside each eye."""
+    patches = _eye_patches(gray, face, 0.14)
+    if len(patches) < 2:
+        return 0.35
+    scores = []
+    for patch in patches:
+        h, w = patch.shape[:2]
+        inner = patch[int(h * 0.18) : int(h * 0.82), int(w * 0.16) : int(w * 0.84)]
+        if inner.size < 16:
+            continue
+        blur = cv2.GaussianBlur(inner, (5, 5), 0)
+        _min_val, _max_val, min_loc, _max_loc = cv2.minMaxLoc(blur)
+        cx, cy = inner.shape[1] / 2.0, inner.shape[0] / 2.0
+        dx = (min_loc[0] - cx) / max(cx, 1.0)
+        dy = (min_loc[1] - cy) / max(cy, 1.0)
+        scores.append(max(0.0, 1.0 - math.hypot(dx, dy) / 0.85))
+    return float(min(scores)) if scores else 0.35
+
+
+def _mouth_relaxed_score(gray: np.ndarray, face: BBox) -> float:
+    """High when mouth is closed or only slightly open — not mid-word."""
+    if not face.landmarks or len(face.landmarks) < 5:
+        return 0.5
+    (nx, ny) = face.landmarks[2]
+    (x1, y1), (x2, y2) = face.landmarks[3], face.landmarks[4]
+    width_px = math.hypot(x2 - x1, y2 - y1)
+    width = width_px / max(face.w, 1.0)
+    drop = ((y1 + y2) / 2.0 - ny) / max(face.h, 1.0)
+    mx = (x1 + x2) / 2.0
+    my = (y1 + y2) / 2.0
+    pad = max(2.0, 0.08 * width_px)
+    x0 = max(0, int(min(x1, x2) + pad))
+    x1b = min(gray.shape[1], int(max(x1, x2) - pad))
+    y0 = max(0, int(my - 0.09 * face.h))
+    y1b = min(gray.shape[0], int(my + 0.12 * face.h))
+    roi = gray[y0:y1b, x0:x1b]
+    dark_frac = 0.0
+    center_mean = 128.0
+    if roi.size >= 32:
+        dark_frac = float((roi < 50).mean())
+        w = roi.shape[1]
+        center = roi[:, w // 3 : 2 * w // 3] if w >= 9 else roi
+        center_mean = float(center.mean())
+    talking = width > 0.50 or drop > 0.42 or dark_frac > 0.055
+    if talking:
+        return 0.05
+    closed = dark_frac <= 0.032 and center_mean >= 104.0 and width <= 0.44
+    if closed:
+        return 1.0
+    if dark_frac <= 0.040 and width <= 0.46:
+        return 0.55
+    return 0.25
 
 
 def _sharpness(gray: np.ndarray, box: BBox) -> float:
-    x0 = max(0, int(box.x))
-    y0 = max(0, int(box.y))
-    x1 = min(gray.shape[1], int(box.x + box.w))
-    y1 = min(gray.shape[0], int(box.y + box.h))
-    roi = gray[y0:y1, x0:x1]
+    roi = _face_roi(gray, box)
     if roi.size < 64:
         return 0.0
     return float(cv2.Laplacian(roi, cv2.CV_64F).var())
+
+
+def _exposure_score(gray: np.ndarray, face: BBox) -> float:
+    roi = _face_roi(gray, face)
+    if roi.size < 64:
+        return 0.0
+    mean = float(roi.mean())
+    if mean < 28 or mean > 230:
+        return 0.0
+    if 70 <= mean <= 180:
+        return 1.0
+    if 45 <= mean <= 210:
+        return 0.7
+    return 0.35
+
+
+def score_guest_portrait(
+    frame: np.ndarray,
+    face: BBox,
+    safe: BBox,
+    *,
+    panel: BBox,
+) -> dict:
+    """Score one guest still. Rejects blinks, profile, blur, mid-word, and cropped faces."""
+    h, w = frame.shape[:2]
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    details = {
+        "accepted": False,
+        "reject_reason": None,
+        "eyes_open": 0.0,
+        "haar_eyes": 0,
+        "gaze_frontal": 0.0,
+        "iris_gaze": 0.0,
+        "yaw": 0.0,
+        "pitch": 0.0,
+        "roll": 0.0,
+        "sharpness": 0.0,
+        "mouth_relaxed": 0.0,
+        "exposure": 0.0,
+        "face_in_panel": False,
+        "score": 0.0,
+    }
+    in_panel = bbox_inside(face, safe, eps=2.0)
+    details["face_in_panel"] = in_panel
+    if not in_panel:
+        details["reject_reason"] = "partially_cropped_face"
+        return details
+    if face.x < 1 or face.y < 1 or face.x + face.w > w - 1 or face.y + face.h > h - 1:
+        details["reject_reason"] = "partially_cropped_face"
+        return details
+
+    pose = _head_pose(face)
+    iris = _iris_gaze_score(gray, face)
+    details["yaw"] = round(pose["yaw"], 3)
+    details["pitch"] = round(pose["pitch"], 3)
+    details["roll"] = round(pose["roll"], 2)
+    details["gaze_frontal"] = round(pose["frontal"], 3)
+    details["iris_gaze"] = round(iris, 3)
+    looking_away = (
+        abs(pose["yaw"]) > 0.20
+        or abs(pose["roll"]) > 12
+        or pose["pitch"] < 0.48
+        or pose["pitch"] > 0.78
+        or pose["frontal"] < 0.50
+        or iris < 0.38
+    )
+    if looking_away:
+        details["reject_reason"] = "looking_away_or_rotated"
+        return details
+
+    eyes = _eye_open_score(gray, face)
+    haar = _haar_eye_count(gray, face)
+    details["eyes_open"] = round(eyes, 3)
+    details["haar_eyes"] = int(haar)
+    if eyes < 0.42 or (haar < 1 and eyes < 0.55):
+        details["reject_reason"] = "blink_or_closed_eyes"
+        return details
+
+    sharp = _sharpness(gray, face)
+    details["sharpness"] = round(sharp, 1)
+    if sharp < 90:
+        details["reject_reason"] = "motion_blur"
+        return details
+
+    mouth = _mouth_relaxed_score(gray, face)
+    details["mouth_relaxed"] = round(mouth, 3)
+    if mouth < 0.40:
+        details["reject_reason"] = "awkward_mouth"
+        return details
+
+    exposure = _exposure_score(gray, face)
+    details["exposure"] = round(exposure, 3)
+    if exposure <= 0.0:
+        details["reject_reason"] = "bad_exposure"
+        return details
+
+    score = (
+        0.22 * eyes
+        + 0.26 * pose["frontal"]
+        + 0.12 * iris
+        + 0.20 * mouth
+        + 0.10 * min(sharp / 280.0, 1.0)
+        + 0.07 * exposure
+        + 0.05 * min(float(face.score), 1.0)
+    )
+    details["score"] = round(float(score), 4)
+    details["accepted"] = True
+    return details
 
 
 def detect_guest_panel(
@@ -359,16 +629,20 @@ def select_guest_still(
     panel: BBox,
     crop_cfg: dict,
     aspect: float,
-) -> tuple[float, BBox, np.ndarray]:
-    windows = _guest_windows(plan)
-    times = _sample_times(windows, step=0.33)
+) -> dict:
+    windows = _all_plan_windows(plan)
+    times = _sample_portrait_times(windows)
     frames = read_frames_at(video, times)
     if not frames:
         raise CoverError("No frames available for guest still")
     model = ensure_yunet_model()
     yunet = CachedYunet(model, score_threshold=0.5) if model else None
     safe = inset_bbox(panel, float(crop_cfg.get("panel_safety_margin", 0.04)))
+    evaluated = 0
+    rejected = 0
+    reject_counts: dict[str, int] = {}
     best = None
+    ranked: list[dict] = []
     for t, frame in zip(times, frames):
         if yunet is None:
             break
@@ -376,48 +650,175 @@ def select_guest_still(
         face = _pick_guest_face(faces, guest_panel)
         if face is None:
             continue
-        if not (
-            safe.x - 8 <= face.cx <= safe.x + safe.w + 8
-            and safe.y - 8 <= face.cy <= safe.y + safe.h + 8
-        ):
+        evaluated += 1
+        details = score_guest_portrait(frame, face, safe, panel=panel)
+        details["timestamp"] = round(float(t), 3)
+        if not details["accepted"]:
+            rejected += 1
+            reason = str(details.get("reject_reason") or "rejected")
+            reject_counts[reason] = reject_counts.get(reason, 0) + 1
             continue
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        lid = _eye_lid_contrast(gray, face)
-        if lid < 5.0:
-            continue
-        if _frontal_score(face) < 0.7:
-            continue
-        sharp = _sharpness(gray, face)
-        score = (
-            0.28 * min(sharp / 220.0, 1.0)
-            + 0.14 * float(face.score)
-            + 0.18 * _eye_score(gray, face)
-            + 0.14 * _mouth_score(face)
-            + 0.14 * _frontal_score(face)
-            + 0.12 * min(max(lid, 0.0) / 14.0, 1.0)
-        )
-        if best is None or score > best[0]:
+        ranked.append({
+            "timestamp": round(float(t), 3),
+            "score": details["score"],
+            "eyes_open": details["eyes_open"],
+            "gaze_frontal": details["gaze_frontal"],
+            "iris_gaze": details.get("iris_gaze", 0.0),
+            "mouth_relaxed": details["mouth_relaxed"],
+            "sharpness": details["sharpness"],
+        })
+        if best is None or details["score"] > best["details"]["score"]:
             crop = crop_inside_roi(face, safe, aspect, **crop_cfg)
-            best = (score, t, crop, frame)
+            best = {"timestamp": t, "crop": crop, "frame": frame, "face": face, "details": details}
     if best is None:
-        raise CoverError("Could not find a clean guest frame inside the panel")
-    _, timestamp, crop, frame = best
+        raise CoverError("Could not find a clean guest portrait inside the panel")
+    crop = best["crop"]
+    frame = best["frame"]
     x, y, w, h = int(round(crop.x)), int(round(crop.y)), int(round(crop.w)), int(round(crop.h))
     x = max(0, x)
     y = max(0, y)
     patch = frame[y:y + h, x:x + w]
     if patch.size == 0:
         raise CoverError("Guest crop is empty")
-    return timestamp, crop, patch
+    reasons = []
+    d = best["details"]
+    if d["eyes_open"] >= 0.55:
+        reasons.append("both eyes open")
+    if d["gaze_frontal"] >= 0.55 and d.get("iris_gaze", 0) >= 0.45:
+        reasons.append("gaze toward camera / near-frontal pose")
+    if d["mouth_relaxed"] >= 0.7:
+        reasons.append("mouth relaxed / not mid-word")
+    if d["sharpness"] >= 150:
+        reasons.append("sharp face")
+    if d["exposure"] >= 0.7:
+        reasons.append("good exposure")
+    if d["face_in_panel"]:
+        reasons.append("fully inside guest panel")
+    return {
+        "timestamp": best["timestamp"],
+        "crop": crop,
+        "patch": patch,
+        "evaluated": evaluated,
+        "accepted": evaluated - rejected,
+        "rejected": rejected,
+        "reject_counts": reject_counts,
+        "score": d["score"],
+        "details": d,
+        "reasons": reasons,
+        "top_candidates": sorted(ranked, key=lambda r: r["score"], reverse=True)[:8],
+    }
 
 
-def _windows_font(*names: str) -> str:
-    windir = Path("C:/Windows/Fonts")
+def _font_search_dirs(root: Path | None) -> list[Path]:
+    dirs = []
+    if root is not None:
+        dirs.append(root / "assets" / "fonts")
+    dirs.append(Path("C:/Windows/Fonts"))
+    local = Path.home() / "AppData" / "Local" / "Microsoft" / "Windows" / "Fonts"
+    dirs.append(local)
+    return [d for d in dirs if d.is_dir()]
+
+
+def _iter_font_files(root: Path | None) -> list[Path]:
+    found: list[Path] = []
+    for folder in _font_search_dirs(root):
+        try:
+            for path in folder.rglob("*"):
+                if path.is_file() and path.suffix.lower() in _FONT_EXTS:
+                    found.append(path)
+        except OSError:
+            continue
+    return found
+
+
+def _norm_style(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _file_family_style(path: Path) -> tuple[str, str]:
+    stem = _norm_style(path.stem)
+    family = stem
+    style = "regular"
+    for token in ("extrabold", "semibold", "demibold", "medium", "black", "bold", "regular", "light"):
+        if token in stem:
+            style = token
+            family = stem.replace(token, "").replace("wght", "")
+            break
+    if "wght" in stem:
+        family = family.replace("wght", "")
+        if style == "regular":
+            style = "variable"
+    return family, style
+
+
+def _open_variable(path: Path, size: int, style: str) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(path), size)
+    wanted = style.replace(" ", "")
+    names = []
+    try:
+        names = [n.decode("utf-8", "ignore") if isinstance(n, bytes) else str(n) for n in font.get_variation_names()]
+    except Exception:
+        names = []
     for name in names:
-        path = windir / name
-        if path.is_file():
-            return str(path)
-    raise CoverError("No Persian-capable font found (expected Tahoma/Segoe UI/Arial)")
+        if _norm_style(name) == _norm_style(wanted):
+            font.set_variation_by_name(name)
+            return font
+    weight = _VAR_WEIGHT.get(_norm_style(wanted))
+    if weight is not None:
+        try:
+            font.set_variation_by_axes([weight])
+        except Exception:
+            pass
+    return font
+
+
+def resolve_cover_font(role: str, *, root: Path | None, size: int) -> tuple[ImageFont.FreeTypeFont, str]:
+    files = _iter_font_files(root)
+    prefs = _FONT_PREF[role]
+    for family, styles in prefs:
+        fam_key = _norm_style(family)
+        matches = [p for p in files if fam_key in _norm_style(p.stem) or fam_key in _norm_style(p.name)]
+        if not matches:
+            continue
+        # Prefer a file whose name contains the requested style; else variable.
+        for style in styles:
+            sty_key = _norm_style(style)
+            named = [p for p in matches if sty_key in _norm_style(p.stem)]
+            if named:
+                path = named[0]
+                font = ImageFont.truetype(str(path), size)
+                label = f"{path.stem} ({path.name})"
+                return font, label
+        variable = [p for p in matches if "wght" in p.stem.lower() or "variable" in p.stem.lower()]
+        pool = variable or matches
+        path = pool[0]
+        font = _open_variable(path, size, styles[0])
+        label = f"{family.title()} {styles[0]} ({path.name})"
+        return font, label
+    raise CoverError(
+        "No professional Persian/Arabic sans-serif font found. "
+        "Install Vazirmatn, Shabnam, Sahel, or Noto Sans Arabic."
+    )
+
+
+def _fit_font_spec(text: str, box: tuple[int, int, int, int], role: str, root: Path | None, max_size: int, min_size: int = 22) -> tuple[ImageFont.FreeTypeFont, str]:
+    _, _, width, height = box
+    chosen_label = ""
+    size = max_size
+    while size >= min_size:
+        font, label = resolve_cover_font(role, root=root, size=size)
+        chosen_label = label
+        lines = _wrap_text(text, font, width - 8)
+        line_h = font.getbbox("آ")[3] - font.getbbox("آ")[1]
+        total_h = len(lines) * int(line_h * 1.18)
+        if total_h <= height and all(
+            font.getbbox(_rtl(line))[2] - font.getbbox(_rtl(line))[0] <= width - 8
+            for line in lines
+        ):
+            return font, label
+        size -= 2
+    font, label = resolve_cover_font(role, root=root, size=min_size)
+    return font, label or chosen_label
 
 
 def _rtl(text: str) -> str:
@@ -589,8 +990,8 @@ def generate_cover(
     crop_cfg = face_crop_params(cfg.get("render") or {})
     gx, gy, gw, gh = layout["guest"]
     aspect = gw / max(1, gh)
-    panel = detect_guest_panel(source, _guest_windows(plan), meta["guest_panel"])
-    timestamp, crop, guest_patch = select_guest_still(
+    panel = detect_guest_panel(source, _all_plan_windows(plan), meta["guest_panel"])
+    still = select_guest_still(
         source,
         plan,
         guest_panel=meta["guest_panel"],
@@ -598,18 +999,17 @@ def generate_cover(
         crop_cfg=crop_cfg,
         aspect=aspect,
     )
+    timestamp, crop, guest_patch = still["timestamp"], still["crop"], still["patch"]
     gold = _sample_gold(canvas)
     canvas = _paste_guest(canvas, guest_patch, layout["guest"], layout["guest_radius"], gold)
     canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
 
     candidates = headline_candidates(plan)
     headline = choose_headline(candidates)
-    bold = _windows_font("tahomabd.ttf", "Tahoma Bold.ttf", "segoeuib.ttf", "arialbd.ttf")
-    regular = _windows_font("tahoma.ttf", "segoeui.ttf", "arial.ttf")
     pil = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-    headline_font = _fit_font(headline, layout["headline"], bold, 72, 28)
-    name_font = _fit_font(meta["guest_name"], layout["name"], bold, 44, 26)
-    role_font = _fit_font(meta["guest_role"], layout["role"], regular, 30, 20)
+    headline_font, headline_font_label = _fit_font_spec(headline, layout["headline"], "headline", root, 68, 28)
+    name_font, name_font_label = _fit_font_spec(meta["guest_name"], layout["name"], "name", root, 42, 24)
+    role_font, role_font_label = _fit_font_spec(meta["guest_role"], layout["role"], "role", root, 28, 18)
     _draw_rtl_block(
         pil, headline, layout["headline"], headline_font, (255, 255, 255),
         stroke_fill=(8, 18, 40), stroke_width=2,
@@ -650,6 +1050,21 @@ def generate_cover(
         },
         "template_used": meta.get("cover_template_rel") or str(Path(meta["cover_template"]).as_posix()),
         "cover_size": f"{width}x{height}",
+        "fonts": {
+            "headline": headline_font_label,
+            "guest_name": name_font_label,
+            "guest_role": role_font_label,
+        },
+        "portrait_selection": {
+            "frames_evaluated": still["evaluated"],
+            "frames_accepted": still["accepted"],
+            "frames_rejected": still["rejected"],
+            "reject_counts": still["reject_counts"],
+            "score": still["score"],
+            "reasons": still["reasons"],
+            "details": still["details"],
+            "top_candidates": still.get("top_candidates", []),
+        },
         "layout_problems": problems,
         "output": str(jpg_path.as_posix()),
     }
