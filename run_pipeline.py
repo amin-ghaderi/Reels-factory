@@ -313,7 +313,7 @@ def build_parser():
     mp.add_argument("--force", action="store_true")
     mp.set_defaults(func=cmd_map_program)
 
-    mr = sub.add_parser("make-reels", help="Whisper → normalize → program map → Q&A Reel Editor → stacked_faces MP4")
+    mr = sub.add_parser("make-reels", help="Whisper → normalize → program map → Q&A → stacked_faces → cover+whoosh package (no subtitles)")
     mr.add_argument("--video", required=True)
     mr.add_argument("--force", action="store_true", help="Redo AI stages (normalize, map, Q&A editor) and re-render")
     mr.set_defaults(func=cmd_make_reels)

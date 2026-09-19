@@ -15,6 +15,7 @@ paths:
   metadata: data/metadata
   portraits: data/portraits
   framing_profiles: data/framing_profiles
+  final: data/final
 
 transcription:
   model: small
@@ -77,3 +78,12 @@ ai_editor:
     model: grok-4.6
     reasoning: high
   max_reels: null
+
+packaging:
+  enabled: true
+  burn_subtitles: false
+  write_srt: false
+  instagram_captions: true
+  cover_hold_s: 1.75
+  transition_s: 0.25
+  whoosh: assets/sounds/whoosh_soft.wav

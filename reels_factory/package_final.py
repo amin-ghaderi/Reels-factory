@@ -5,8 +5,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .cover import generate_cover_finaltest
-from .utils import require_binary, run, write_json
+from .cover import generate_cover, generate_cover_finaltest
+from .instagram import write_instagram_caption
+from .utils import read_json, require_binary, run, write_json
 
 COVER_HOLD_S = 1.75
 TRANSITION_S = 0.25
@@ -373,3 +374,76 @@ def package_1705_finals(
         "reels": rows,
     })
     return rows
+
+
+def packaging_enabled(cfg: dict) -> bool:
+    pack = cfg.get("packaging") or {}
+    return bool(pack.get("enabled", True))
+
+
+def instagram_captions_enabled(cfg: dict) -> bool:
+    pack = cfg.get("packaging") or {}
+    return bool(pack.get("instagram_captions", True))
+
+
+def burn_subtitles_enabled(cfg: dict) -> bool:
+    """Production default is off. Reel SRTs are never written unless this is true."""
+    pack = cfg.get("packaging") or {}
+    if pack.get("burn_subtitles") or pack.get("write_srt"):
+        return True
+    return bool((cfg.get("render") or {}).get("burn_captions", False))
+
+
+def package_production_reel(
+    *,
+    plan_path: Path,
+    reel_mp4: Path,
+    cfg: dict,
+    root: Path,
+    metadata_path: Path,
+) -> dict:
+    """Cover + whoosh intro + final MP4 + Instagram caption. No subtitles."""
+    root = Path(root)
+    plan_path = Path(plan_path)
+    plan = read_json(plan_path)
+    meta = read_json(metadata_path)
+    reel_id = plan.get("reel_id") or plan_path.stem
+    final_dir = Path(cfg["paths"].get("final") or (root / "data" / "final"))
+    cover_dir = final_dir / "covers"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    cover_jpg = cover_dir / f"{reel_id}_cover.jpg"
+    cover_json = cover_dir / f"{reel_id}_cover.json"
+    cover = generate_cover(
+        plan_path,
+        metadata_path,
+        cfg,
+        root=root,
+        output_jpg=cover_jpg,
+        output_json=cover_json,
+    )
+    whoosh = ensure_whoosh(root)
+    out_mp4 = final_dir / f"{reel_id}_final.mp4"
+    print(f"[final] package {reel_id} <- {reel_mp4.name}", flush=True)
+    stats = package_final_mp4(
+        cover_jpg=cover_jpg,
+        reel_mp4=reel_mp4,
+        whoosh=whoosh,
+        output_mp4=out_mp4,
+        fps=int((cfg.get("render") or {}).get("fps") or 30),
+    )
+    caption_path = None
+    if instagram_captions_enabled(cfg):
+        caption_path = write_instagram_caption(
+            final_dir / f"{reel_id}_instagram.txt",
+            plan,
+            meta,
+        )
+    return {
+        "reel_id": reel_id,
+        "final_mp4": str(out_mp4.as_posix()),
+        "cover_jpg": str(cover_jpg.as_posix()),
+        "cover_json": str(cover_json.as_posix()),
+        "instagram_txt": str(caption_path.as_posix()) if caption_path else None,
+        "headline": cover.get("selected_headline"),
+        "duration": stats["duration"],
+    }

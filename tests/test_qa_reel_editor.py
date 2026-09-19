@@ -312,6 +312,7 @@ def test_make_reels_mocked_pipeline_and_render_settings(tmp_path):
     assert counts == {"norm": 1, "map": 1, "edit": 1, "render": 1, "transcribe": 0}
     assert result["plan_count"] == 1
     assert result["rendered"][0]["mp4"].endswith("show_qa_Q01.mp4")
+    assert result["rendered"][0]["package"] is None
     assert any(row["unit_id"] == "T01" for row in result["skipped_units"])
 
     again = make_reels(
@@ -390,11 +391,14 @@ def test_make_reels_force_redoes_ai_not_whisper(tmp_path):
 def test_render_config_forces_stacked_faces_captions_off():
     cfg = render_config_for_qa({
         "render": {"burn_captions": True, "layout": "center_crop", "face_crop": {"zoom": 1.32}},
+        "packaging": {"burn_subtitles": True, "write_srt": True},
         "paths": {},
     })
     assert cfg["render"]["burn_captions"] is False
     assert cfg["render"]["layout"] == "stacked_faces"
     assert cfg["render"]["face_crop"]["zoom"] == 1.32
+    assert cfg["packaging"]["burn_subtitles"] is False
+    assert cfg["packaging"]["write_srt"] is False
 
 
 def test_make_reels_cli_exists():

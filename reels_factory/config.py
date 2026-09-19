@@ -21,6 +21,7 @@ DEFAULT_CONFIG = {
         "metadata": "data/metadata",
         "portraits": "data/portraits",
         "framing_profiles": "data/framing_profiles",
+        "final": "data/final",
     },
     "transcription": {
         "model": "small",
@@ -93,6 +94,15 @@ DEFAULT_CONFIG = {
             "reasoning": "high",
         },
         "max_reels": None,
+    },
+    "packaging": {
+        "enabled": True,
+        "burn_subtitles": False,
+        "write_srt": False,
+        "instagram_captions": True,
+        "cover_hold_s": 1.75,
+        "transition_s": 0.25,
+        "whoosh": "assets/sounds/whoosh_soft.wav",
     },
 }
 
