@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
         "qa_plans": "data/qa_plans",
         "metadata": "data/metadata",
         "portraits": "data/portraits",
+        "framing_profiles": "data/framing_profiles",
     },
     "transcription": {
         "model": "small",

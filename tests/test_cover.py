@@ -173,6 +173,22 @@ def test_score_rejects_face_outside_panel():
     assert details["reject_reason"] == "partially_cropped_face"
 
 
+def test_face_aware_cover_crop_fills_box_without_letterbox():
+    from reels_factory.cover import face_aware_cover_crop
+    import numpy as np
+
+    img = np.zeros((200, 400, 3), dtype=np.uint8)
+    img[:, :] = (30, 40, 50)
+    img[40:160, 140:260] = (80, 160, 200)
+    out = face_aware_cover_crop(img, 90, 100)
+    assert out["patch"].shape[1] == 90
+    assert out["patch"].shape[0] == 100
+    assert out["scale"] == 0.5
+    # Crop-to-fill uses the full source height, so no empty bands in the box.
+    assert out["crop"]["h"] == 200
+    assert out["crop"]["w"] == 180
+
+
 def test_cover_json_schema_keys():
     # Contract for the sidecar written by generate_cover.
     required = {

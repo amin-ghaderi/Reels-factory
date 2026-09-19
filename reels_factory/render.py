@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from .faces import LayoutPlan, plan_clip_layout, plan_locked_layout
+from .framing import layout_from_framing_profile, resolve_framing_profile
 from .plan_validate import plan_has_segments, validate_semantic_plan
 from .subtitles import build_rebased_srt
 from .utils import parse_timestamp, read_json, require_binary, run
@@ -103,6 +104,25 @@ def resolve_transcript_for_plan(plan_path: Path, plan: dict, cfg: dict) -> Path:
     )
 
 
+def choose_reel_layout(
+    source: Path,
+    cfg: dict,
+    rcfg: dict,
+    clips: list[dict],
+) -> LayoutPlan | None:
+    """Prefer a source-level framing profile over per-reel face detection."""
+    profile = resolve_framing_profile(source, cfg)
+    if profile is not None:
+        return layout_from_framing_profile(profile, rcfg)
+    if _lock_crops_for_reel(rcfg, clips):
+        return plan_locked_layout(
+            source,
+            [(clip["start"], clip["end"]) for clip in clips],
+            rcfg,
+        )
+    return None
+
+
 def _lock_crops_for_reel(rcfg: dict, clips: list[dict]) -> bool:
     requested = str(rcfg.get("layout", "stacked_faces")).strip().lower()
     if requested not in {"stacked_faces", "single_face"}:
@@ -183,13 +203,8 @@ def render_reel(
         temp = Path(td)
         parts = []
         layouts: list[LayoutPlan] = []
-        locked_layout: LayoutPlan | None = None
-        if _lock_crops_for_reel(rcfg, clips):
-            locked_layout = plan_locked_layout(
-                source,
-                [(clip["start"], clip["end"]) for clip in clips],
-                rcfg,
-            )
+        locked_layout = choose_reel_layout(source, cfg, rcfg, clips)
+        if locked_layout is not None:
             print(
                 f"[layout] locked crops for all {len(clips)} clips "
                 f"mode={locked_layout.mode} method={locked_layout.method} "

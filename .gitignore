@@ -30,3 +30,8 @@ data/qa_plans/*
 !data/qa_plans/.gitkeep
 data/portraits/*
 !data/portraits/.gitkeep
+data/final/*
+!data/final/.gitkeep
+!data/final/covers/
+data/final/covers/*
+!data/final/covers/.gitkeep

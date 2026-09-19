@@ -950,15 +950,235 @@ def _paste_guest(
         width=4,
     )
     return cv2.cvtColor(np.array(overlay), cv2.COLOR_RGB2BGR)
-    overlay = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(overlay)
-    draw.rounded_rectangle(
-        (x, y, x + w - 1, y + h - 1),
-        radius=max(0, radius),
-        outline=gold,
-        width=4,
+
+
+def _largest_face(image: np.ndarray) -> BBox | None:
+    bgr = image[:, :, :3] if image.ndim == 3 and image.shape[2] >= 3 else image
+    model = ensure_yunet_model()
+    if model is None:
+        return None
+    yunet = CachedYunet(model, score_threshold=0.5)
+    faces = filter_faces(yunet.detect(bgr), bgr.shape[1], bgr.shape[0], 40)
+    if not faces:
+        return None
+    return max(faces, key=lambda f: f.area)
+
+
+def face_aware_cover_crop(image: np.ndarray, width: int, height: int) -> dict:
+    """Crop-to-fill a box. Uniform scale, no letterbox, face-centered with headroom."""
+    if image.ndim == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    bgr = image[:, :, :3]
+    src_h, src_w = bgr.shape[:2]
+    if src_w < 2 or src_h < 2:
+        raise CoverError("Portrait image is empty")
+    scale = max(width / src_w, height / src_h)
+    crop_w = min(float(src_w), width / scale)
+    crop_h = min(float(src_h), height / scale)
+    face = _largest_face(bgr)
+    if face is None:
+        cx = src_w / 2.0
+        head_top = 0.0
+    else:
+        cx = float(face.cx)
+        head_top = float(face.y) - 0.16 * float(face.h)
+    x0 = cx - crop_w / 2.0
+    y0 = head_top - 0.06 * crop_h
+    x0 = min(max(0.0, x0), max(0.0, src_w - crop_w))
+    y0 = min(max(0.0, y0), max(0.0, src_h - crop_h))
+    x = int(round(x0))
+    y = int(round(y0))
+    w = max(1, int(round(crop_w)))
+    h = max(1, int(round(crop_h)))
+    x = min(max(0, x), max(0, src_w - w))
+    y = min(max(0, y), max(0, src_h - h))
+    patch = bgr[y : y + h, x : x + w]
+    if patch.size == 0:
+        raise CoverError("Cover crop is empty")
+    interp = cv2.INTER_AREA if scale <= 1.0 else cv2.INTER_LANCZOS4
+    filled = cv2.resize(patch, (width, height), interpolation=interp)
+    return {
+        "patch": filled,
+        "crop": {"x": float(x), "y": float(y), "w": float(w), "h": float(h)},
+        "scale": round(float(scale), 4),
+        "face": None
+        if face is None
+        else {
+            "x": round(float(face.x), 1),
+            "y": round(float(face.y), 1),
+            "w": round(float(face.w), 1),
+            "h": round(float(face.h), 1),
+        },
+    }
+
+
+def _draw_editorial_headline(
+    canvas: Image.Image,
+    lines: list[str],
+    concept: str | None,
+    box: tuple[int, int, int, int],
+    root: Path | None,
+    gold: tuple[int, int, int],
+) -> tuple[str, str | None]:
+    x, y, w, h = box
+    draw = ImageDraw.Draw(canvas)
+    concept_font, concept_label = resolve_cover_font("role", root=root, size=30)
+    headline_font = None
+    headline_label = ""
+    for size in range(74, 47, -2):
+        font, label = resolve_cover_font("headline", root=root, size=size)
+        line_h = font.getbbox("آ")[3] - font.getbbox("آ")[1]
+        gap = int(line_h * 0.30)
+        total_h = len(lines) * line_h + max(0, len(lines) - 1) * gap
+        concept_h = 0
+        if concept:
+            ch = concept_font.getbbox("آ")[3] - concept_font.getbbox("آ")[1]
+            concept_h = ch + 26
+        widths_ok = all(
+            (font.getbbox(_rtl(line))[2] - font.getbbox(_rtl(line))[0]) <= (w - 24)
+            for line in lines
+        )
+        if widths_ok and concept_h + total_h <= h - 12:
+            headline_font = font
+            headline_label = label
+            break
+    if headline_font is None:
+        headline_font, headline_label = resolve_cover_font("headline", root=root, size=48)
+    line_h = headline_font.getbbox("آ")[3] - headline_font.getbbox("آ")[1]
+    gap = int(line_h * 0.30)
+    total_h = len(lines) * line_h + max(0, len(lines) - 1) * gap
+    concept_h = 0
+    if concept:
+        concept_line_h = concept_font.getbbox("آ")[3] - concept_font.getbbox("آ")[1]
+        concept_h = concept_line_h + 26
+    cy = y + max(0, (h - (concept_h + total_h)) // 2)
+    if concept:
+        visual = _rtl(concept)
+        lw = concept_font.getbbox(visual)[2] - concept_font.getbbox(visual)[0]
+        lx = x + max(0, (w - lw) // 2)
+        draw.text((lx, cy), visual, font=concept_font, fill=gold)
+        cy += concept_h
+    for line in lines:
+        visual = _rtl(line)
+        lw = headline_font.getbbox(visual)[2] - headline_font.getbbox(visual)[0]
+        lx = x + max(0, (w - lw) // 2)
+        draw.text(
+            (lx, cy),
+            visual,
+            font=headline_font,
+            fill=(255, 255, 255),
+            stroke_width=2,
+            stroke_fill=(8, 18, 40),
+        )
+        cy += line_h + gap
+    return headline_label, (concept_label if concept else None)
+
+
+def generate_cover_finaltest(
+    plan_path: Path,
+    metadata_path: Path,
+    cfg: dict,
+    *,
+    root: Path,
+    master_portrait: Path,
+    output_jpg: Path,
+    output_json: Path,
+    headline: str,
+    headline_lines: list[str],
+    headline_candidates: list[str],
+    concept_label: str | None,
+) -> dict:
+    from .portrait import load_master_guest_portrait
+
+    plan_path = Path(plan_path)
+    plan = read_json(plan_path)
+    meta = load_cover_metadata(metadata_path, root=root)
+    width, height = parse_cover_size(meta["cover_size"])
+    template_img = cv2.imread(str(meta["cover_template"]), cv2.IMREAD_COLOR)
+    if template_img is None:
+        raise CoverError(f"Could not read template: {meta['cover_template']}")
+    canvas = scale_template(template_img, width, height)
+    layout = load_cover_layout(Path(meta["cover_template"]), (width, height))
+    master_file = Path(master_portrait)
+    master = load_master_guest_portrait(master_file)
+    gx, gy, gw, gh = layout["guest"]
+    filled = face_aware_cover_crop(master["image"], gw, gh)
+    gold = _sample_gold(canvas)
+    canvas = _paste_guest(canvas, filled["patch"], layout["guest"], layout["guest_radius"], gold)
+    canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
+
+    pil = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+    headline_font_label, concept_font_label = _draw_editorial_headline(
+        pil, headline_lines, concept_label, layout["headline"], root, gold
     )
-    return cv2.cvtColor(np.array(overlay), cv2.COLOR_RGB2BGR)
+    name_font, name_font_label = _fit_font_spec(meta["guest_name"], layout["name"], "name", root, 42, 24)
+    role_font, role_font_label = _fit_font_spec(meta["guest_role"], layout["role"], "role", root, 28, 18)
+    _draw_rtl_block(pil, meta["guest_name"], layout["name"], name_font, gold)
+    _draw_rtl_block(pil, meta["guest_role"], layout["role"], role_font, (232, 220, 190))
+    canvas = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+    canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
+    problems = layout_problems(canvas, layout, scale_template(template_img, width, height))
+
+    jpg_path = Path(output_jpg)
+    json_path = Path(output_json)
+    jpg_path.parent.mkdir(parents=True, exist_ok=True)
+    ok = cv2.imwrite(str(jpg_path), canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 93])
+    if not ok:
+        raise CoverError(f"Failed to write {jpg_path}")
+
+    png_crop = filled["crop"]
+    origin = master["crop"]
+    src_h = int(master["image"].shape[0])
+    scale_from_master = (origin.h / src_h) if src_h else 1.0
+    source_crop = {
+        "x": round(origin.x + png_crop["x"] * scale_from_master, 1),
+        "y": round(origin.y + png_crop["y"] * scale_from_master, 1),
+        "w": round(png_crop["w"] * scale_from_master, 1),
+        "h": round(png_crop["h"] * scale_from_master, 1),
+    }
+    payload = {
+        "selected_headline": headline,
+        "short_concept_phrase": concept_label,
+        "headline_candidates": headline_candidates,
+        "headline_lines": headline_lines,
+        "number_of_headline_lines": len(headline_lines),
+        "guest_name": meta["guest_name"],
+        "guest_role": meta["guest_role"],
+        "guest_panel": meta["guest_panel"],
+        "guest_portrait": str(master_file.as_posix()),
+        "portrait_mode": "master_cover_fill",
+        "source_frame_timestamp": ts(master["timestamp"]),
+        "source_frame_seconds": round(float(master["timestamp"]), 3),
+        "master_portrait_crop_coordinates": {
+            "x": round(png_crop["x"], 1),
+            "y": round(png_crop["y"], 1),
+            "w": round(png_crop["w"], 1),
+            "h": round(png_crop["h"], 1),
+        },
+        "source_crop_coordinates": source_crop,
+        "final_portrait_scale": filled["scale"],
+        "face": filled.get("face"),
+        "crop_coordinates": source_crop,
+        "panel": {
+            "x": round(float(master["panel"].x), 1),
+            "y": round(float(master["panel"].y), 1),
+            "w": round(float(master["panel"].w), 1),
+            "h": round(float(master["panel"].h), 1),
+        },
+        "template_used": meta.get("cover_template_rel") or str(Path(meta["cover_template"]).as_posix()),
+        "cover_size": f"{width}x{height}",
+        "fonts": {
+            "headline": headline_font_label,
+            "concept": concept_font_label,
+            "guest_name": name_font_label,
+            "guest_role": role_font_label,
+        },
+        "layout_problems": problems,
+        "output": str(jpg_path.as_posix()),
+        "reel_id": plan.get("reel_id") or plan_path.stem,
+    }
+    write_json(json_path, payload)
+    return payload
 
 
 def _restore_protected(canvas: np.ndarray, template: np.ndarray, protected: list[tuple[int, int, int, int]]) -> np.ndarray:

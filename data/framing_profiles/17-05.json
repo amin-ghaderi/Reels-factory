@@ -1,0 +1,13 @@
+{
+  "source_stem": "17-05",
+  "source_video": "data/inbox/17-05.mp4",
+  "frame_size": [1920, 1080],
+  "layout": "stacked_faces",
+  "safety_margin": 0.04,
+  "person_a": {"x": 239.6, "y": 294.0, "w": 483.0, "h": 429.3},
+  "person_b": {"x": 1133.1, "y": 355.6, "w": 483.0, "h": 429.3},
+  "panel_a": {"x": 44.0, "y": 271.0, "w": 900.0, "h": 538.0},
+  "panel_b": {"x": 986.0, "y": 271.0, "w": 891.0, "h": 538.0},
+  "approved_from": "data/output/1705_qa_Q01_cleanframe.mp4",
+  "notes": "Static split-screen. Never recalculate per Reel or per segment."
+}
