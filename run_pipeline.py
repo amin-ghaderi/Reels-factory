@@ -9,6 +9,7 @@ from reels_factory.ai_normalizer import normalize_transcript
 from reels_factory.config import load_config
 from reels_factory.cursor_ai import CursorAIError
 from reels_factory.cover import generate_cover
+from reels_factory.portrait import build_master_guest_portrait
 from reels_factory.make_reels import make_reels
 from reels_factory.pipeline import preprocess_video
 from reels_factory.program_map import map_program
@@ -201,6 +202,19 @@ def cmd_map_program(args):
     }, ensure_ascii=False, indent=2))
 
 
+def cmd_master_portrait(args):
+    cfg = load_config(ROOT, Path(args.config) if args.config else None)
+    video = Path(args.video)
+    if not video.is_absolute():
+        video = (ROOT / video).resolve()
+    meta_dir = Path(cfg["paths"].get("metadata") or (ROOT / "data" / "metadata"))
+    metadata = Path(args.metadata) if args.metadata else (meta_dir / f"{video.stem}.json")
+    if not metadata.is_absolute():
+        metadata = (ROOT / metadata).resolve()
+    result = build_master_guest_portrait(video, metadata, cfg, root=ROOT)
+    print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+
+
 def cmd_cover(args):
     cfg = load_config(ROOT, Path(args.config) if args.config else None)
     plan = Path(args.plan)
@@ -303,6 +317,11 @@ def build_parser():
     mr.add_argument("--video", required=True)
     mr.add_argument("--force", action="store_true", help="Redo AI stages (normalize, map, Q&A editor) and re-render")
     mr.set_defaults(func=cmd_make_reels)
+
+    gp = sub.add_parser("master-portrait", help="Build one master guest portrait PNG for a source video")
+    gp.add_argument("--video", required=True)
+    gp.add_argument("--metadata", help="Metadata JSON; default data/metadata/<video-stem>.json")
+    gp.set_defaults(func=cmd_master_portrait)
 
     cv = sub.add_parser("cover", help="Generate one Instagram Reel cover JPG from plan + metadata")
     cv.add_argument("--plan", required=True)

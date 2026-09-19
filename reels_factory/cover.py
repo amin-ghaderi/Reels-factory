@@ -915,12 +915,41 @@ def _paste_guest(
     gold: tuple[int, int, int],
 ) -> np.ndarray:
     x, y, w, h = box
-    fitted = cv2.resize(guest, (w, h), interpolation=cv2.INTER_AREA)
-    mask = _rounded_mask(w, h, radius)
-    roi = canvas[y:y + h, x:x + w]
-    alpha = (mask.astype(np.float32) / 255.0)[..., None]
-    blended = (fitted.astype(np.float32) * alpha + roi.astype(np.float32) * (1.0 - alpha)).astype(np.uint8)
-    canvas[y:y + h, x:x + w] = blended
+    if guest.ndim == 2:
+        guest = cv2.cvtColor(guest, cv2.COLOR_GRAY2BGR)
+    if guest.shape[2] == 4:
+        rgb = guest[:, :, :3]
+        person_a = guest[:, :, 3].astype(np.float32) / 255.0
+    else:
+        rgb = guest[:, :, :3]
+        person_a = np.ones(guest.shape[:2], dtype=np.float32)
+    gh, gw = rgb.shape[:2]
+    scale = min(w / max(1, gw), h / max(1, gh))
+    new_w = max(1, int(round(gw * scale)))
+    new_h = max(1, int(round(gh * scale)))
+    interp = cv2.INTER_AREA if scale <= 1.0 else cv2.INTER_LANCZOS4
+    fitted = cv2.resize(rgb, (new_w, new_h), interpolation=interp)
+    fitted_a = cv2.resize(person_a, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    ox = (w - new_w) // 2
+    oy = (h - new_h) // 2
+    layer = np.zeros((h, w, 3), dtype=np.uint8)
+    alpha_layer = np.zeros((h, w), dtype=np.float32)
+    layer[oy : oy + new_h, ox : ox + new_w] = fitted
+    alpha_layer[oy : oy + new_h, ox : ox + new_w] = fitted_a
+    round_mask = _rounded_mask(w, h, radius)
+    roi = canvas[y : y + h, x : x + w]
+    alpha = (alpha_layer * (round_mask.astype(np.float32) / 255.0))[..., None]
+    blended = (layer.astype(np.float32) * alpha + roi.astype(np.float32) * (1.0 - alpha)).astype(np.uint8)
+    canvas[y : y + h, x : x + w] = blended
+    overlay = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(overlay)
+    draw.rounded_rectangle(
+        (x, y, x + w - 1, y + h - 1),
+        radius=max(0, radius),
+        outline=gold,
+        width=4,
+    )
+    return cv2.cvtColor(np.array(overlay), cv2.COLOR_RGB2BGR)
     overlay = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(overlay)
     draw.rounded_rectangle(
@@ -975,6 +1004,7 @@ def generate_cover(
     root: Path,
     output_jpg: Path | None = None,
     output_json: Path | None = None,
+    master_portrait: Path | None = None,
 ) -> dict:
     plan_path = Path(plan_path)
     plan = read_json(plan_path)
@@ -990,16 +1020,47 @@ def generate_cover(
     crop_cfg = face_crop_params(cfg.get("render") or {})
     gx, gy, gw, gh = layout["guest"]
     aspect = gw / max(1, gh)
-    panel = detect_guest_panel(source, _all_plan_windows(plan), meta["guest_panel"])
-    still = select_guest_still(
-        source,
-        plan,
-        guest_panel=meta["guest_panel"],
-        panel=panel,
-        crop_cfg=crop_cfg,
-        aspect=aspect,
-    )
-    timestamp, crop, guest_patch = still["timestamp"], still["crop"], still["patch"]
+    from .portrait import load_master_guest_portrait, master_portrait_path, resolve_master_portrait
+
+    source_stem = Path(plan.get("source_video") or source).stem or source.stem
+    declared = str(meta.get("guest_portrait") or "").strip()
+    if master_portrait is not None:
+        master_file = Path(master_portrait)
+        if not master_file.is_file():
+            raise CoverError(f"Master guest portrait not found: {master_file}")
+        master = load_master_guest_portrait(master_file)
+    else:
+        master_path = master_portrait_path(source_stem, root=root, meta=meta, cfg=cfg)
+        if declared and not master_path.is_file():
+            raise CoverError(f"Master guest portrait not found: {master_path}")
+        master_file = resolve_master_portrait(source_stem, root=root, meta=meta, cfg=cfg)
+        master = load_master_guest_portrait(master_file) if master_file else None
+    if master is not None:
+        timestamp = master["timestamp"]
+        crop = master["crop"]
+        guest_patch = master["image"]
+        panel = master["panel"]
+        still = {
+            "evaluated": (master["sidecar"].get("portrait_selection") or {}).get("frames_evaluated", 0),
+            "accepted": (master["sidecar"].get("portrait_selection") or {}).get("frames_accepted", 0),
+            "rejected": (master["sidecar"].get("portrait_selection") or {}).get("frames_rejected", 0),
+            "reject_counts": (master["sidecar"].get("portrait_selection") or {}).get("reject_counts", {}),
+            "score": master["score"],
+            "details": (master["sidecar"].get("portrait_selection") or {}).get("details", {}),
+            "reasons": (master["sidecar"].get("portrait_selection") or {}).get("reasons", ["master guest portrait"]),
+            "top_candidates": (master["sidecar"].get("portrait_selection") or {}).get("top_candidates", []),
+        }
+    else:
+        panel = detect_guest_panel(source, _all_plan_windows(plan), meta["guest_panel"])
+        still = select_guest_still(
+            source,
+            plan,
+            guest_panel=meta["guest_panel"],
+            panel=panel,
+            crop_cfg=crop_cfg,
+            aspect=aspect,
+        )
+        timestamp, crop, guest_patch = still["timestamp"], still["crop"], still["patch"]
     gold = _sample_gold(canvas)
     canvas = _paste_guest(canvas, guest_patch, layout["guest"], layout["guest_radius"], gold)
     canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
@@ -1034,6 +1095,8 @@ def generate_cover(
         "guest_name": meta["guest_name"],
         "guest_role": meta["guest_role"],
         "guest_panel": meta["guest_panel"],
+        "guest_portrait": str(master_file.as_posix()) if master is not None else None,
+        "portrait_mode": "master" if master is not None else "per_reel",
         "source_frame_timestamp": ts(timestamp),
         "source_frame_seconds": round(float(timestamp), 3),
         "crop_coordinates": {

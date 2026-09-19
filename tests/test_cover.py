@@ -46,6 +46,9 @@ def test_load_17_05_metadata_is_bottom_guest():
     assert meta["guest_panel"] == "bottom"
     assert meta["cover_size"] == "1080x1920"
     assert Path(meta["cover_template"]).is_file()
+    assert str(meta.get("guest_portrait") or "").replace("\\", "/").endswith(
+        "data/portraits/17-05_guest_master.png"
+    )
 
 
 def test_metadata_rejects_bad_panel(tmp_path):

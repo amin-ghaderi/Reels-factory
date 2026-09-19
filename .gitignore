@@ -28,3 +28,5 @@ data/program_maps/*
 !data/program_maps/.gitkeep
 data/qa_plans/*
 !data/qa_plans/.gitkeep
+data/portraits/*
+!data/portraits/.gitkeep

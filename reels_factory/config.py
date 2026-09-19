@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
         "program_maps": "data/program_maps",
         "qa_plans": "data/qa_plans",
         "metadata": "data/metadata",
+        "portraits": "data/portraits",
     },
     "transcription": {
         "model": "small",
