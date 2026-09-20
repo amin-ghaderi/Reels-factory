@@ -1,0 +1,17 @@
+{
+  "question_complete": true,
+  "answer_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "verdict": "PASS",
+  "playback_simulation_ok": true,
+  "notes": "Question asks for origin AND the arc to today. Solferino + emblem + founding + Pahlavi work + confiscation are all required. Duration is long because the source argument is a 13-minute history, not because of leftover filler.",
+  "reel_id": "1805_qa_Q01",
+  "estimated_duration_s": 342.32,
+  "segment_count": 7,
+  "internal_cuts": 6
+}

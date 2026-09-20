@@ -1,0 +1,65 @@
+{
+  "source_unit": "Q01",
+  "source_video": "data/inbox/18-05.mp4",
+  "stage": "argument_mapper",
+  "full_qa_range": {
+    "start": "00:00:45.850",
+    "end": "00:14:32.810"
+  },
+  "question_intent": "Host wants a history of the Iranian Red Lion and Sun Society: how its work began, and the historical arc through to what happened later.",
+  "complete_question_core": "سؤال اول این است که یک تاریخچه‌ای از جمعیت شیر و خورشید سرخ ایران بدانیم که فعالیتش را چطور شروع می‌کند و این سیر تاریخی را بررسی کنیم تا برسیم به اتفاقات امروز.",
+  "main_answer": "The guest answers by starting from the international Red Cross at Solferino 1863, then says Muslim states rejected the cross and Iran requested its own emblem from the lion-and-sun flag; the Iranian body was inactive under the Qajars until 1301 statutes, grew as a health/relief institution under Reza Shah, and after 1357 was confiscated into the Red Crescent.",
+  "required_reasoning": [
+    "Must begin from the global Red Cross, not jump straight to Iran.",
+    "Solferino 1863 origin of the movement.",
+    "Muslim countries would not accept a Christian cross; Iran asked for its own emblem.",
+    "Qajar-era inactivity, then official founding around 1301.",
+    "Pahlavi-era health infrastructure (hospitals, nursing, army medical services) as what the society actually did.",
+    "1357 / confiscation as the arrival at 'today's events'."
+  ],
+  "required_context": [
+    "New viewer needs the name جمعیت شیر و خورشید سرخ ایران.",
+    "Needs to know the lion-and-sun came from Iran's flag as a requested national emblem.",
+    "Needs to know the later body is the Red Crescent after confiscation."
+  ],
+  "qualifications": [
+    "Guest's historical telling, not an independent archival ruling.",
+    "Confiscation is presented as the guest's account (Khomeini decree / 10 Tir)."
+  ],
+  "conclusion_payoff": "After 1357 the unique Iranian emblem/society is confiscated and falls into the Islamic Republic Red Crescent.",
+  "dependencies": [
+    {
+      "from": "Muslim countries rejected the cross",
+      "needs": "the international emblem is a cross / Red Cross origin"
+    },
+    {
+      "from": "Iran requested its own sign from the flag",
+      "needs": "other states were already choosing national emblems"
+    },
+    {
+      "from": "1301 statutes",
+      "needs": "Qajar inactivity as the problem being solved"
+    },
+    {
+      "from": "hospitals and army medical services",
+      "needs": "Reza Shah's priority on health"
+    },
+    {
+      "from": "confiscated",
+      "needs": "that this unique Iranian body/emblem existed"
+    }
+  ],
+  "optional_material": [
+    "Dunant biography, book, sixteen-country meeting, Geneva convention details.",
+    "Swiss-flag inversion color lecture.",
+    "Ottoman crescent color inversion (duplicate emblem explanation).",
+    "Bushehr quarantine / hospital ship Faror examples.",
+    "International conference prestige, hospital-ship uniqueness."
+  ],
+  "removable_material": [
+    "Host padding after the question (00:01:07.130–00:01:12.530).",
+    "Verbal restarts and duplicated 'today the Red Crescent is a repression/intelligence center' coda after confiscation is already stated.",
+    "Iran-Iraq war hypothetical about why a Red Crescent still exists."
+  ],
+  "final_cuts_made": false
+}

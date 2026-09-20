@@ -14,6 +14,22 @@ WORD_PAD_S = 2.0
 SEGMENT_PAD_S = 0.75
 TRANSITION_TYPES = {"transition"}
 QA_TYPES = {"main_question", "follow_up", "clarification"}
+CEILING_S = 180.0
+MAX_REVISION_ATTEMPTS = 2
+NON_ANSWER_ROLES = {"question_core", "hook"}
+CLOSING_NEEDLES = ("keepsake", "closing message", "یادگاری", "پیام پایانی")
+GATE_FLAGS = (
+    "duration_le_180",
+    "question_complete",
+    "answer_logically_complete",
+    "sentence_boundaries_clean",
+    "references_resolved",
+    "required_reasoning_preserved",
+    "important_qualifications_preserved",
+    "conclusion_supported",
+    "coherent_for_new_viewer",
+    "no_fragment_montage",
+)
 
 
 def load_qa_editor_prompt(root: Path) -> str:
@@ -127,6 +143,72 @@ def _rel_source(video: Path, root: Path) -> str:
         return str(video)
 
 
+def is_closing_message(unit: dict) -> bool:
+    blob = " ".join(
+        [
+            str(unit.get("topic") or ""),
+            str(unit.get("notes") or ""),
+            str((unit.get("question") or {}).get("text") or ""),
+        ]
+    ).lower()
+    return any(needle in blob for needle in CLOSING_NEEDLES)
+
+
+def answer_blocks(plan: dict) -> list[dict]:
+    return [
+        seg for seg in (plan.get("segments") or [])
+        if str(seg.get("role") or "").strip().lower() not in NON_ANSWER_ROLES
+    ]
+
+
+def evaluate_control_gate(plan: dict, *, closing_message: bool = False) -> dict:
+    """Mechanical Control Gate after smart compression + integrity repair."""
+    content = round(estimated_duration(plan), 3) if plan.get("segments") else 0.0
+    segs = plan.get("segments") or []
+    blocks = answer_blocks(plan)
+    roles = [str(seg.get("role") or "").strip().lower() for seg in segs]
+    pb = plan.get("playback_check") if isinstance(plan.get("playback_check"), dict) else {}
+    editor = plan.get("control_gate") if isinstance(plan.get("control_gate"), dict) else {}
+    justification = str(
+        plan.get("fragment_justification") or editor.get("fragment_justification") or ""
+    ).strip()
+
+    def flag(key: str, default: bool) -> bool:
+        if key in editor:
+            return bool(editor[key])
+        return default
+
+    n_blocks = len(blocks)
+    no_fragment = n_blocks <= 5 or bool(justification)
+    if closing_message:
+        no_fragment = n_blocks == 1
+    quals = pb.get("qualifications_kept", True)
+    quals_ok = True if quals is True else bool(str(quals or "").strip())
+    result = {
+        "duration_s": content,
+        "duration_le_180": content <= CEILING_S or closing_message,
+        "question_complete": ("question_core" in roles) and flag("question_complete", True),
+        "answer_logically_complete": bool(blocks) and flag(
+            "answer_logically_complete", bool(pb.get("answers_the_question", True))
+        ),
+        "sentence_boundaries_clean": flag(
+            "sentence_boundaries_clean", bool(pb.get("ending_complete", True))
+        ),
+        "references_resolved": flag("references_resolved", True),
+        "required_reasoning_preserved": flag("required_reasoning_preserved", True),
+        "important_qualifications_preserved": flag("important_qualifications_preserved", quals_ok),
+        "conclusion_supported": flag("conclusion_supported", bool(pb.get("ending_complete", True))),
+        "coherent_for_new_viewer": flag(
+            "coherent_for_new_viewer", bool(pb.get("subject_clear", True))
+        ),
+        "no_fragment_montage": no_fragment and flag("no_fragment_montage", True),
+        "answer_block_count": n_blocks,
+        "closing_message": closing_message,
+    }
+    result["verdict"] = "PASS" if all(result[k] is True for k in GATE_FLAGS) else "FAIL"
+    return result
+
+
 def parse_qa_editor_payload(parsed, *, reel_id: str, unit_id: str) -> dict:
     if not isinstance(parsed, dict):
         raise CursorAIError("Q&A editor JSON must be an object")
@@ -190,11 +272,16 @@ def edit_qa_unit(
     semantic_cfg = (cfg.get("ai_editor") or {}).get("semantic_editor") or {}
     preferred = str(aicfg.get("model") or semantic_cfg.get("model") or "grok-4.6")
     model = resolve_model_id(preferred, kind="semantic")
+    closing = is_closing_message(unit)
     payload = {
         "source_video": source_rel,
         "reel_id": reel_id,
         "language": normalized.get("language"),
         "program_duration": ts(normalized.get("duration") or 0),
+        "editorial_formula": "SMART COMPRESSION → INTEGRITY REPAIR → CONTROL GATE",
+        "duration_target_s": [45, 150],
+        "duration_ceiling_s": CEILING_S,
+        "closing_message_exception": closing,
         "unit": unit,
         "referenced_units": referenced_unit_summaries(program_map, unit),
         "segments": slice_normalized_for_unit(normalized, start, end),
@@ -207,44 +294,97 @@ def edit_qa_unit(
     )
     caller = invoke or invoke_cursor_agent
     print(f"[qa-editor] calling {model} for {unit_id} ({len(payload['segments'])} segments)")
+    source_duration = float(normalized.get("duration") or 0) or None
+    last_fail = None
+    enriched = None
+    gate = None
     try:
         with tempfile.TemporaryDirectory(prefix="reels_ai_qa_") as td:
-            output = caller(prompt, model=model, mode="ask", workspace=Path(td), timeout=900)
-        parsed = extract_json_payload(output)
-        plan = parse_qa_editor_payload(parsed, reel_id=reel_id, unit_id=unit_id)
+            for attempt in range(1, MAX_REVISION_ATTEMPTS + 1):
+                request = prompt
+                if attempt > 1 and last_fail is not None:
+                    request = (
+                        prompt
+                        + "\n\n## CONTROL GATE FAILED — revision "
+                        + str(attempt)
+                        + "\nRepair the previous plan. Integrity Repair only: "
+                        "extend cut boundaries slightly or restore the smallest "
+                        "adjacent phrase. Do not restore minutes of optional material. "
+                        "Do not redesign from scratch.\n"
+                        + json.dumps(last_fail, ensure_ascii=False)
+                    )
+                output = caller(request, model=model, mode="ask", workspace=Path(td), timeout=900)
+                parsed = extract_json_payload(output)
+                plan = parse_qa_editor_payload(parsed, reel_id=reel_id, unit_id=unit_id)
+                if plan.get("skip"):
+                    record = {
+                        "skip": True,
+                        "reason": plan.get("reason"),
+                        "source_unit": unit_id,
+                        "reel_id": reel_id,
+                        "cached": False,
+                    }
+                    _write_skip(paths["skip"], record)
+                    if paths["json"].exists():
+                        paths["json"].unlink()
+                    print(f"[qa-editor] skipped {unit_id}: {record['reason']}")
+                    return record
+                try:
+                    enriched = enrich_reel(plan, source_video=source_rel, source_duration=source_duration)
+                except PlanValidationError as exc:
+                    raise CursorAIError(
+                        f"Q&A editor plan for {unit_id} failed validation: {exc}"
+                    ) from exc
+                enriched["source_unit"] = unit_id
+                enriched["reel_id"] = reel_id
+                enriched["estimated_duration_s"] = round(estimated_duration(enriched), 3)
+                enriched["editorial_pass"] = "compress_then_repair"
+                gate = evaluate_control_gate(enriched, closing_message=closing)
+                gate["revision_attempt"] = attempt
+                enriched["control_gate"] = gate
+                if gate["verdict"] == "PASS":
+                    break
+                last_fail = {
+                    "attempt": attempt,
+                    "gate": gate,
+                    "previous_plan": {
+                        "segments": enriched.get("segments"),
+                        "removed": enriched.get("removed"),
+                        "estimated_duration_s": enriched.get("estimated_duration_s"),
+                    },
+                }
+                print(
+                    f"[qa-editor] {unit_id} control gate FAIL "
+                    f"(attempt {attempt}/{MAX_REVISION_ATTEMPTS})"
+                )
+            else:
+                record = {
+                    "skip": True,
+                    "reason": f"control gate failed after {MAX_REVISION_ATTEMPTS} attempts: {gate}",
+                    "source_unit": unit_id,
+                    "reel_id": reel_id,
+                    "cached": False,
+                    "error": True,
+                }
+                _write_skip(paths["skip"], record)
+                if paths["json"].exists():
+                    paths["json"].unlink()
+                print(f"[qa-editor] skipped {unit_id}: control gate failed")
+                return record
     except CursorAIError:
         raise
     except Exception as exc:
         raise CursorAIError(f"Q&A editor call failed for {unit_id}: {exc}") from exc
 
-    if plan.get("skip"):
-        record = {
-            "skip": True,
-            "reason": plan.get("reason"),
-            "source_unit": unit_id,
-            "reel_id": reel_id,
-            "cached": False,
-        }
-        _write_skip(paths["skip"], record)
-        if paths["json"].exists():
-            paths["json"].unlink()
-        print(f"[qa-editor] skipped {unit_id}: {record['reason']}")
-        return record
-
-    source_duration = float(normalized.get("duration") or 0) or None
-    try:
-        enriched = enrich_reel(plan, source_video=source_rel, source_duration=source_duration)
-    except PlanValidationError as exc:
-        raise CursorAIError(f"Q&A editor plan for {unit_id} failed validation: {exc}") from exc
-    enriched["source_unit"] = unit_id
-    enriched["reel_id"] = reel_id
-    enriched["estimated_duration_s"] = round(estimated_duration(enriched), 3)
     enriched["cached"] = False
     enriched["skip"] = False
     write_json(paths["json"], enriched)
     if paths["skip"].exists():
         paths["skip"].unlink()
-    print(f"[qa-editor] wrote {paths['json'].name} ({enriched['estimated_duration_s']}s)")
+    print(
+        f"[qa-editor] wrote {paths['json'].name} "
+        f"({enriched['estimated_duration_s']}s gate={gate['verdict']})"
+    )
     return enriched
 
 

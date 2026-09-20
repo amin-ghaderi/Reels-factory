@@ -1,0 +1,67 @@
+{
+  "duration_s": 98.14,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "conclusion_supported": true,
+  "no_fragment_montage": true,
+  "no_missing_essential_qualification": true,
+  "answer_block_count": 3,
+  "revision_attempt": 1,
+  "verdict": "PASS",
+  "reel_id": "1805_qa_Q02",
+  "full_qa_duration_s": 460.34,
+  "first_draft": {
+    "philosophy": "original successful Q&A editor (V1 answer spine) with a complete question core",
+    "duration_s": 104.0,
+    "segments": [
+      [
+        "question_core",
+        "00:14:43.470",
+        "00:15:26.170"
+      ],
+      [
+        "central_answer",
+        "00:15:43.730",
+        "00:16:04.610"
+      ],
+      [
+        "reasoning",
+        "00:17:54.650",
+        "00:18:16.590"
+      ],
+      [
+        "payoff",
+        "00:18:56.750",
+        "00:19:15.230"
+      ]
+    ],
+    "failed_checks": [
+      "central_answer started after 'دو تا سازمان' and ended on unfinished 'کرامت انسانی را'",
+      "Lar reasoning ended on unfinished 'شهری که'"
+    ]
+  },
+  "integrity_repair": [
+    {
+      "action": "extend existing start earlier; trim unfinished tail",
+      "from": "00:15:43.730–00:16:04.610",
+      "to": "00:15:42.450–00:15:58.330",
+      "why": "begin at 'دو تا سازمان'; end on the completed 'پایه‌های اساسی بودند'"
+    },
+    {
+      "action": "trim unfinished tail",
+      "from": "00:17:54.650–00:18:16.590",
+      "to": "00:17:54.650–00:18:15.730",
+      "why": "stop at completed 'شهر لار ساخته می‌شود', not the fragment 'شهری که'"
+    }
+  ],
+  "not_restored": [
+    "Confiscation/loot list after Lar (optional hinge; question already states conversion to Red Crescent)",
+    "Radios, helicopters, Tehran/Plasco/medicine/search-dog detours"
+  ],
+  "repaired_duration_s": 98.14,
+  "answer_blocks": 3,
+  "experimental_mp4": "C:/Users/Public/Myapps/reels-factory/data/output_v3/1805_qa_Q02_v3.mp4"
+}

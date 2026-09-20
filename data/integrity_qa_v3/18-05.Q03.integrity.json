@@ -1,0 +1,55 @@
+{
+  "duration_s": 57.48,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 4,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 1,
+  "full_qa_duration_s": 420.08,
+  "first_draft": {
+    "philosophy": "original successful Q&A editor (V1 spine)",
+    "duration_s": 50.66,
+    "failed_checks": [
+      "central_answer started on 'ولی وقتی زلزله بم' without the lost-contact sentence",
+      "exile started on unfinished 'و در زمانی که'",
+      "restore-name block continued into the next unfinished clause"
+    ]
+  },
+  "integrity_repair": [
+    {
+      "action": "extend existing start earlier",
+      "from": "00:23:58.750",
+      "to": "00:23:51.170",
+      "why": "restore adjacent lost-contact sentence so 'ولی وقتی بم' is resolved"
+    },
+    {
+      "action": "extend existing start earlier",
+      "from": "00:25:40.250",
+      "to": "00:25:38.370",
+      "why": "start at completed 'مجبور به جلای وطن شدیم'"
+    },
+    {
+      "action": "trim unfinished tail",
+      "from": "00:26:01.830–00:26:09.030",
+      "to": "00:26:01.830–00:26:06.390",
+      "why": "stop on completed 'به دست آوردیم'"
+    }
+  ],
+  "not_restored": [
+    "Childhood/flag pride, team-building, physical-threat detour",
+    "Asylum process, Facebook/Ukraine/ICRC/corona, protest first-aid teams"
+  ],
+  "reel_id": "1805_qa_Q03",
+  "repaired_duration_s": 57.48,
+  "answer_blocks": 4,
+  "experimental_mp4": "C:/Users/Public/Myapps/reels-factory/data/output_v3/1805_qa_Q03_v3.mp4"
+}

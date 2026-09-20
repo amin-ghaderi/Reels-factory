@@ -1,0 +1,17 @@
+{
+  "question_complete": true,
+  "answer_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "verdict": "PASS",
+  "playback_simulation_ok": true,
+  "notes": "Fixed V1 mid-sentence starts/ends (دو تا سازمان / شهری که / کرامت انسانی را). Restored confiscation hinge so Bam is not a conclusion without its premise.",
+  "reel_id": "1805_qa_Q02",
+  "estimated_duration_s": 111.34,
+  "segment_count": 5,
+  "internal_cuts": 4
+}

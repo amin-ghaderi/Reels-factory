@@ -9,6 +9,7 @@ from reels_factory.cover import (
     load_cover_layout,
     load_cover_metadata,
     parse_cover_size,
+    resolve_concept_label,
     scale_template,
 )
 from reels_factory.faces import BBox, bbox_inside, crop_inside_roi, inset_bbox
@@ -189,7 +190,11 @@ def test_face_aware_cover_crop_fills_box_without_letterbox():
     assert out["crop"]["w"] == 180
 
 
-def test_cover_json_schema_keys():
+def test_concept_label_is_off_unless_explicit():
+    assert resolve_concept_label(None) is None
+    assert resolve_concept_label("") is None
+    assert resolve_concept_label("   ") is None
+    assert resolve_concept_label("تاریخ جمعیت") == "تاریخ جمعیت"
     # Contract for the sidecar written by generate_cover.
     required = {
         "selected_headline",

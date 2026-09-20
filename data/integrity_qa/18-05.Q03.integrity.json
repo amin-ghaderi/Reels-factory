@@ -1,0 +1,17 @@
+{
+  "question_complete": true,
+  "answer_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "verdict": "PASS",
+  "playback_simulation_ok": true,
+  "notes": "Kept the lost-interest sentence so 'ولی وقتی زلزله بم' is resolved. Exile follows re-entry and threats.",
+  "reel_id": "1805_qa_Q03",
+  "estimated_duration_s": 67.12,
+  "segment_count": 6,
+  "internal_cuts": 5
+}

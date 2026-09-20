@@ -1,0 +1,32 @@
+{
+  "duration_s": 63.28,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 1,
+  "closing_message": true,
+  "verdict": "PASS",
+  "revision_attempt": 1,
+  "full_qa_duration_s": 66.3,
+  "first_draft": {
+    "philosophy": "closing-message exception: no guest-message compression",
+    "duration_s": 63.28,
+    "failed_checks": []
+  },
+  "integrity_repair": [],
+  "not_restored": [
+    "Host praise before the keepsake prompt",
+    "Guest thanks before the message — message itself kept continuous"
+  ],
+  "reel_id": "1805_qa_Q06",
+  "repaired_duration_s": 63.28,
+  "answer_blocks": 1,
+  "experimental_mp4": "C:/Users/Public/Myapps/reels-factory/data/output_v3/1805_qa_Q06_v3.mp4"
+}

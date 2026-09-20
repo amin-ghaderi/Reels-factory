@@ -1,0 +1,41 @@
+{
+  "source_unit": "Q05",
+  "source_video": "data/inbox/18-05.mp4",
+  "stage": "argument_mapper",
+  "full_qa_range": {
+    "start": "00:35:48.430",
+    "end": "00:36:54.710"
+  },
+  "question_intent": "Host asks how the guest pictures Iran after the Islamic Republic.",
+  "complete_question_core": "تصور بعد از جمهوری اسلامی را چطور می‌بینید.",
+  "main_answer": "He imagines post-IRI Iran as an ideal country to live in for Iranians and for humanity, and — given existing capacity — one of the most prosperous and modern countries, returning to that glory.",
+  "required_reasoning": [
+    "The answer is framed as تصور / a picture, not a demonstrated outcome.",
+    "Capacity/talent already in Iran is the stated basis."
+  ],
+  "required_context": [
+    "The question names 'بعد از جمهوری اسلامی' so the hypothetical is explicit."
+  ],
+  "qualifications": [
+    "This is the guest's imagined future, not a proven forecast.",
+    "Keep 'تصور' and 'یقین داشته باشید' as his wording, without upgrading them into fact."
+  ],
+  "conclusion_payoff": "یکی از آبادترین و مدرن‌ترین کشورهای جهان خواهیم بود؛ برمی‌گردیم به آن شکوه.",
+  "dependencies": [
+    {
+      "from": "با امکانات و استعداد موجود",
+      "needs": "the hypothetical picture already opened"
+    },
+    {
+      "from": "برمی‌گردیم به آن شکوهش",
+      "needs": "the prosperous/modern claim"
+    }
+  ],
+  "optional_material": [
+    "Host closing-show padding and 'forty-seven-year costly experience' before the actual question."
+  ],
+  "removable_material": [
+    "Host padding 00:35:48.430–00:36:18.530; trailing host mutter after the question."
+  ],
+  "final_cuts_made": false
+}

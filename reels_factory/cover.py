@@ -1012,6 +1012,12 @@ def face_aware_cover_crop(image: np.ndarray, width: int, height: int) -> dict:
     }
 
 
+def resolve_concept_label(value: str | None) -> str | None:
+    """Kickers are off unless a non-empty phrase is explicitly supplied."""
+    text = str(value or "").strip()
+    return text or None
+
+
 def _draw_editorial_headline(
     canvas: Image.Image,
     lines: list[str],
@@ -1086,10 +1092,11 @@ def generate_cover_finaltest(
     headline: str,
     headline_lines: list[str],
     headline_candidates: list[str],
-    concept_label: str | None,
+    concept_label: str | None = None,
 ) -> dict:
     from .portrait import load_master_guest_portrait
 
+    concept_label = resolve_concept_label(concept_label)
     plan_path = Path(plan_path)
     plan = read_json(plan_path)
     meta = load_cover_metadata(metadata_path, root=root)

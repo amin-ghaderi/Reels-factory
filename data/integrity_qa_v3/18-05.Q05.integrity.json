@@ -1,0 +1,40 @@
+{
+  "duration_s": 31.12,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 1,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 1,
+  "full_qa_duration_s": 66.28,
+  "first_draft": {
+    "philosophy": "original successful Q&A editor (V1 spine with complete question)",
+    "duration_s": 34.4,
+    "failed_checks": [
+      "question_core included host mutter after the completed 'می‌بینید'"
+    ]
+  },
+  "integrity_repair": [
+    {
+      "action": "trim host padding after complete question",
+      "from": "00:36:18.530–00:36:24.550",
+      "to": "00:36:18.530–00:36:21.270",
+      "why": "question is complete at 'می‌بینید'; mutter is not a missing premise"
+    }
+  ],
+  "not_restored": [
+    "Host closing-show padding before the hypothetical"
+  ],
+  "reel_id": "1805_qa_Q05",
+  "repaired_duration_s": 31.12,
+  "answer_blocks": 1,
+  "experimental_mp4": "C:/Users/Public/Myapps/reels-factory/data/output_v3/1805_qa_Q05_v3.mp4"
+}

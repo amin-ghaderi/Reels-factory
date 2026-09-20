@@ -1,0 +1,55 @@
+{
+  "source_unit": "Q03",
+  "source_video": "data/inbox/18-05.mp4",
+  "stage": "argument_mapper",
+  "full_qa_range": {
+    "start": "00:22:52.710",
+    "end": "00:29:52.790"
+  },
+  "question_intent": "Host asks where the motivation came from to revive the Red Lion and Sun name and work outside Iran.",
+  "complete_question_core": "در پی احیای این نام ارزشمند جمعیت شیر و خورشید سرخ ایران فعالیت را آغاز می‌کنید بیرون ایران. این انگیزه از کجا آمده.",
+  "main_answer": "He had lost connection after the conversion to Red Crescent; Bam jolted him back; he re-entered the (renamed) structure, then was forced into exile in Germany, restored the name/flag, and registered an official association there.",
+  "required_reasoning": [
+    "Lost interest after conversion — otherwise 'ولی وقتی زلزله بم' has no referent.",
+    "Bam as the stated push.",
+    "Re-entering the Red Crescent structure (the renamed body).",
+    "Threats / forced exile to Germany.",
+    "Restoring name, emblem, flag.",
+    "Official German association registration as the revival's concrete close."
+  ],
+  "required_context": [
+    "Revival is the guest's path (Bam, exile, Germany), not universal recognition.",
+    "The revived name is شیر و خورشید سرخ ایران."
+  ],
+  "qualifications": [
+    "Registration in Germany is the guest's claim of a legal association, not ICRC recognition.",
+    "Bam is a personal jolt, not a proof that revival was inevitable."
+  ],
+  "conclusion_payoff": "After a long process they registered an official association in Germany under the lion-and-sun name.",
+  "dependencies": [
+    {
+      "from": "ولی وقت زلزله بم",
+      "needs": "تا سالیان سال ربطی به این ساختار نداشتم"
+    },
+    {
+      "from": "مجبور به جلای وطن",
+      "needs": "a reason (threats / physical harm) and that he was inside the structure"
+    },
+    {
+      "from": "با همین نشان انجمن ثبت کردیم",
+      "needs": "name/flag restored"
+    }
+  ],
+  "optional_material": [
+    "Childhood pride in the flag.",
+    "Building his own Bam team, executive-council years, training details.",
+    "Asylum paperwork.",
+    "Ukraine aid, ICRC letters, street-protest first-aid teams."
+  ],
+  "removable_material": [
+    "Host padding after the ask (00:23:08.230–00:23:14.030).",
+    "Guest restart before the lost-interest sentence.",
+    "Corona delay as extra bureaucracy color."
+  ],
+  "final_cuts_made": false
+}

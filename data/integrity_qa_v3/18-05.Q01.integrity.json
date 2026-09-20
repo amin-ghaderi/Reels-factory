@@ -1,0 +1,62 @@
+{
+  "duration_s": 107.6,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "conclusion_supported": true,
+  "no_fragment_montage": true,
+  "no_missing_essential_qualification": true,
+  "answer_block_count": 2,
+  "revision_attempt": 1,
+  "verdict": "PASS",
+  "reel_id": "1805_qa_Q01",
+  "full_qa_duration_s": 826.96,
+  "first_draft": {
+    "philosophy": "original successful Q&A editor (V1 spine)",
+    "duration_s": 77.7,
+    "segments": [
+      [
+        "question_core",
+        "00:00:45.850",
+        "00:01:07.130"
+      ],
+      [
+        "central_answer",
+        "00:01:26.290",
+        "00:01:48.110"
+      ],
+      [
+        "payoff",
+        "00:04:07.690",
+        "00:04:42.290"
+      ]
+    ],
+    "failed_checks": [
+      "central_answer started after the setup sentence 'we must start from the global Red Cross'",
+      "payoff started on 'they don't accept the cross' with no subject (Muslim countries)"
+    ]
+  },
+  "integrity_repair": [
+    {
+      "action": "extend existing start earlier",
+      "from": "00:01:26.290",
+      "to": "00:01:12.590",
+      "why": "restore the adjacent setup sentence so Solferino does not begin mid-thought"
+    },
+    {
+      "action": "extend existing start earlier",
+      "from": "00:04:07.690",
+      "to": "00:03:51.490",
+      "why": "restore the adjacent 'Muslim countries' subject so 'don't accept the cross' is not a dangling clause"
+    }
+  ],
+  "not_restored": [
+    "Dunant / Geneva / Swiss-flag inversion (optional origin detail)",
+    "Qajar inactivity, 1301 statutes, Pahlavi hospitals, 1357 confiscation (historical side path; not required once the emblem answer is complete)"
+  ],
+  "repaired_duration_s": 107.6,
+  "answer_blocks": 2,
+  "experimental_mp4": "C:/Users/Public/Myapps/reels-factory/data/output_v3/1805_qa_Q01_v3.mp4"
+}

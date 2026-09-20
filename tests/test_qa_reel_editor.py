@@ -5,6 +5,8 @@ from pathlib import Path
 from reels_factory.make_reels import make_reels, render_config_for_qa
 from reels_factory.qa_reel_editor import (
     edit_program_qa_units,
+    evaluate_control_gate,
+    is_closing_message,
     is_qa_unit,
     is_transition_unit,
     parse_qa_editor_payload,
@@ -13,7 +15,7 @@ from reels_factory.qa_reel_editor import (
     slice_words_for_unit,
     unit_bounds,
 )
-from reels_factory.utils import read_json
+from reels_factory.utils import read_json, ts
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -439,3 +441,136 @@ def test_invalid_plan_skips_unit_without_crashing(tmp_path):
     )
     assert result["plans"] == []
     assert "overlap" in result["skipped"][0]["reason"]
+
+
+def _gate_plan(segments, **extra):
+    plan = {
+        "reel_id": "show_qa_Q01",
+        "segments": segments,
+        "playback_check": {
+            "subject_clear": True,
+            "answers_the_question": True,
+            "qualifications_kept": "uncertainty kept",
+            "ending_complete": True,
+        },
+    }
+    plan.update(extra)
+    return plan
+
+
+def test_control_gate_passes_compact_reel():
+    gate = evaluate_control_gate(_gate_plan([
+        {"start": "00:00:10.000", "end": "00:00:20.000", "role": "question_core"},
+        {"start": "00:00:24.000", "end": "00:00:40.000", "role": "central_answer"},
+        {"start": "00:00:40.000", "end": "00:00:55.000", "role": "payoff"},
+    ]))
+    assert gate["verdict"] == "PASS"
+    assert gate["duration_le_180"] is True
+    assert gate["answer_block_count"] == 2
+
+
+def test_control_gate_rejects_over_ceiling_unless_closing_message():
+    long_plan = _gate_plan([
+        {"start": "00:00:10.000", "end": "00:02:10.000", "role": "question_core"},
+        {"start": "00:02:10.000", "end": "00:04:20.000", "role": "central_answer"},
+    ])
+    assert evaluate_control_gate(long_plan)["verdict"] == "FAIL"
+    assert evaluate_control_gate(long_plan)["duration_le_180"] is False
+    closing = evaluate_control_gate(long_plan, closing_message=True)
+    assert closing["duration_le_180"] is True
+    assert closing["verdict"] == "PASS"
+
+
+def test_control_gate_rejects_fragment_montage_without_justification():
+    segs = [{"start": "00:00:01.000", "end": "00:00:03.000", "role": "question_core"}]
+    t = 10.0
+    for _ in range(6):
+        segs.append({"start": ts(t), "end": ts(t + 2), "role": "reasoning"})
+        t += 4.0
+    bare = evaluate_control_gate(_gate_plan(segs))
+    assert bare["no_fragment_montage"] is False
+    assert bare["verdict"] == "FAIL"
+    justified = evaluate_control_gate(_gate_plan(segs, fragment_justification="source beats are disjoint"))
+    assert justified["no_fragment_montage"] is True
+    assert justified["verdict"] == "PASS"
+
+
+def test_closing_message_requires_one_continuous_answer_block():
+    unit = _unit(
+        "Q06",
+        topic="keepsake message to the people",
+        notes="closing keepsake; keep the guest message continuous",
+    )
+    assert is_closing_message(unit) is True
+    two_blocks = evaluate_control_gate(
+        _gate_plan([
+            {"start": "00:00:10.000", "end": "00:00:16.000", "role": "question_core"},
+            {"start": "00:00:18.000", "end": "00:00:30.000", "role": "central_answer"},
+            {"start": "00:00:40.000", "end": "00:00:50.000", "role": "payoff"},
+        ]),
+        closing_message=True,
+    )
+    assert two_blocks["no_fragment_montage"] is False
+    assert two_blocks["verdict"] == "FAIL"
+
+
+def test_over_ceiling_triggers_one_revision(tmp_path):
+    video = tmp_path / "show.mp4"
+    video.write_bytes(b"0")
+    cfg = {
+        "paths": {
+            "transcripts": tmp_path / "transcripts",
+            "normalized_transcripts": tmp_path / "norm",
+            "program_maps": tmp_path / "maps",
+            "qa_plans": tmp_path / "qa_plans",
+        },
+        "ai_editor": {"qa_reel_editor": {"model": "grok-4.6"}},
+    }
+    calls = []
+
+    def fake_invoke(prompt, **kwargs):
+        calls.append(prompt)
+        if "## CONTROL GATE FAILED — revision" in prompt:
+            return json.dumps({
+                "hook_used": False,
+                "playback_check": {
+                    "subject_clear": True,
+                    "answers_the_question": True,
+                    "qualifications_kept": "kept",
+                    "ending_complete": True,
+                },
+                "segments": [
+                    {"start": "00:00:10.000", "end": "00:00:20.000", "role": "question_core", "why": "q"},
+                    {"start": "00:00:24.000", "end": "00:00:40.000", "role": "central_answer", "why": "a"},
+                ],
+            })
+        return json.dumps({
+            "hook_used": False,
+            "playback_check": {
+                "subject_clear": True,
+                "answers_the_question": True,
+                "qualifications_kept": "kept",
+                "ending_complete": True,
+            },
+            "segments": [
+                {"start": "00:00:10.000", "end": "00:02:10.000", "role": "question_core", "why": "q"},
+                {"start": "00:02:10.000", "end": "00:04:20.000", "role": "central_answer", "why": "a"},
+            ],
+        })
+
+    result = edit_program_qa_units(
+        video,
+        cfg,
+        root=ROOT,
+        invoke=fake_invoke,
+        program_map={"units": [_unit("Q01")]},
+        normalized={"duration": 400.0, "segments": [
+            {"segment_id": 1, "start": 10.0, "end": 20.0, "raw_text": "q", "clean_text": "q"}
+        ]},
+        transcript={"segments": []},
+    )
+    assert len(calls) == 2
+    assert "CONTROL GATE FAILED — revision" in calls[1]
+    assert result["plans"][0]["control_gate"]["verdict"] == "PASS"
+    assert result["plans"][0]["control_gate"]["revision_attempt"] == 2
+    assert result["plans"][0]["editorial_pass"] == "compress_then_repair"

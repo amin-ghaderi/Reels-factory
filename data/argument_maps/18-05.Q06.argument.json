@@ -1,0 +1,41 @@
+{
+  "source_unit": "Q06",
+  "source_video": "data/inbox/18-05.mp4",
+  "stage": "argument_mapper",
+  "full_qa_range": {
+    "start": "00:37:09.840",
+    "end": "00:38:16.140"
+  },
+  "special_rule": "Closing keepsake. Do not compress the guest's direct message. Zero internal cuts inside that message.",
+  "question_intent": "Host asks for a keepsake: speak directly to the people of Iran.",
+  "complete_question_core": "در قسمت پایانی برنامه یک یادگاری از مهمان می‌گیریم؛ مستقیماً با مردم عزیز ایران صحبت بکنید.",
+  "main_answer": "Do not lose hope; Iranians abroad have not forgotten you; the Red Lion and Sun is working toward serving you; he asks Red Crescent rescuers to join and stand with the people because a national uprising will begin.",
+  "required_reasoning": [
+    "The whole continuous closing message is required. No internal compression."
+  ],
+  "required_context": [
+    "Addressed to people of Iran; speaker is from the Red Lion and Sun abroad."
+  ],
+  "qualifications": [
+    "Hope, remembrance, and the call to rescuers are the guest's words.",
+    "Keep the 'قیام ملی' clause; it is his stated reason, not an editor add-on."
+  ],
+  "conclusion_payoff": "Stand with the people this time.",
+  "dependencies": [
+    {
+      "from": "ولی یقین داشته باشید در فکر شما هستیم",
+      "needs": "درست است که از شما دوریم"
+    },
+    {
+      "from": "چون قیام ملی… کنار مردم بایستید",
+      "needs": "the appeal to Red Crescent rescuers"
+    }
+  ],
+  "optional_material": [
+    "Host praise before the keepsake prompt."
+  ],
+  "removable_material": [
+    "Guest thanks 00:37:22.700–00:37:24.900 before the message starts."
+  ],
+  "final_cuts_made": false
+}

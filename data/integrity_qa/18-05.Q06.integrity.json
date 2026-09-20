@@ -1,0 +1,17 @@
+{
+  "question_complete": true,
+  "answer_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "verdict": "PASS",
+  "playback_simulation_ok": true,
+  "notes": "Special rule honored: continuous guest message 00:37:24.900–00:38:16.140 with zero internal cuts.",
+  "reel_id": "1805_qa_Q06",
+  "estimated_duration_s": 63.28,
+  "segment_count": 2,
+  "internal_cuts": 1
+}

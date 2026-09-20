@@ -316,7 +316,6 @@ def package_1705_finals(
                 headline=copy["headline"],
                 headline_lines=copy["lines"],
                 headline_candidates=copy["candidates"],
-                concept_label=copy["concept"],
             )
         else:
             if not cover_jpg.is_file():

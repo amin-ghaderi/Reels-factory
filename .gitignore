@@ -35,3 +35,5 @@ data/final/*
 !data/final/covers/
 data/final/covers/*
 !data/final/covers/.gitkeep
+
+*.mp4
