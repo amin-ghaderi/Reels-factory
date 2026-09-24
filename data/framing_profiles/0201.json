@@ -1,0 +1,156 @@
+{
+  "source_stem": "0201",
+  "source_video": "data/inbox/0201.mp4",
+  "frame_size": [
+    1920,
+    1080
+  ],
+  "layout": "stacked_faces",
+  "safety_margin": 0.04,
+  "person_a": {
+    "x": 245.9,
+    "y": 308.2,
+    "w": 463.3,
+    "h": 411.8
+  },
+  "person_b": {
+    "x": 1184.0,
+    "y": 366.2,
+    "w": 443.4,
+    "h": 394.1
+  },
+  "panel_a": {
+    "x": 52.0,
+    "y": 288.0,
+    "w": 896.0,
+    "h": 504.0
+  },
+  "panel_b": {
+    "x": 972.0,
+    "y": 288.0,
+    "w": 896.0,
+    "h": 504.0
+  },
+  "duration_s": 2611.266,
+  "sample_windows": [
+    {
+      "start": 8.0,
+      "end": 26.0
+    },
+    {
+      "start": 98.0,
+      "end": 116.0
+    },
+    {
+      "start": 188.0,
+      "end": 206.0
+    },
+    {
+      "start": 278.0,
+      "end": 296.0
+    },
+    {
+      "start": 368.0,
+      "end": 386.0
+    },
+    {
+      "start": 458.0,
+      "end": 476.0
+    },
+    {
+      "start": 548.0,
+      "end": 566.0
+    },
+    {
+      "start": 638.0,
+      "end": 656.0
+    },
+    {
+      "start": 728.0,
+      "end": 746.0
+    },
+    {
+      "start": 818.0,
+      "end": 836.0
+    },
+    {
+      "start": 908.0,
+      "end": 926.0
+    },
+    {
+      "start": 998.0,
+      "end": 1016.0
+    },
+    {
+      "start": 1088.0,
+      "end": 1106.0
+    },
+    {
+      "start": 1178.0,
+      "end": 1196.0
+    },
+    {
+      "start": 1268.0,
+      "end": 1286.0
+    },
+    {
+      "start": 1358.0,
+      "end": 1376.0
+    },
+    {
+      "start": 1448.0,
+      "end": 1466.0
+    },
+    {
+      "start": 1538.0,
+      "end": 1556.0
+    },
+    {
+      "start": 1628.0,
+      "end": 1646.0
+    },
+    {
+      "start": 1718.0,
+      "end": 1736.0
+    },
+    {
+      "start": 1808.0,
+      "end": 1826.0
+    },
+    {
+      "start": 1898.0,
+      "end": 1916.0
+    },
+    {
+      "start": 1988.0,
+      "end": 2006.0
+    },
+    {
+      "start": 2078.0,
+      "end": 2096.0
+    },
+    {
+      "start": 2168.0,
+      "end": 2186.0
+    },
+    {
+      "start": 2258.0,
+      "end": 2276.0
+    },
+    {
+      "start": 2348.0,
+      "end": 2366.0
+    },
+    {
+      "start": 2438.0,
+      "end": 2456.0
+    },
+    {
+      "start": 2528.0,
+      "end": 2546.0
+    }
+  ],
+  "guest_panel": "bottom",
+  "notes": "Static split-screen for 0201 only. Black letterbox around two inset tiles. Guest is RIGHT source panel / BOTTOM stacked crop (بانو میترا سالار). Host is LEFT / TOP. Never recalculate per Reel. Do not reuse 09-04/17-05/18-05 crops.",
+  "ffmpeg_filter": "[0:v]split=2[a][b];[a]crop=462:412:246:308,scale=1080:960:force_original_aspect_ratio=increase,crop=1080:960[top];[b]crop=442:394:1184:366,scale=1080:960:force_original_aspect_ratio=increase,crop=1080:960[bot];[top][bot]vstack=inputs=2,setsar=1,fps=30[v]"
+}

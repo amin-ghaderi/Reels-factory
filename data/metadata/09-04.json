@@ -1,0 +1,8 @@
+{
+  "guest_name": "دکتر بابک سینا",
+  "guest_role": "دبیر نخست پارمان پادشاهی ایرانیان",
+  "guest_panel": "bottom",
+  "cover_template": "assets/covers/default/cover_template.png",
+  "cover_size": "1080x1920",
+  "guest_portrait": "data/portraits/09-04_guest_master.png"
+}

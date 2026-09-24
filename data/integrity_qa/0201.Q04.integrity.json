@@ -1,0 +1,26 @@
+{
+  "duration_s": 116.2,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 2,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 2,
+  "reel_id": "0201_qa_Q04",
+  "integrity_repair": [
+    "kept the full host question including whether the two are the same, different, or overlapping",
+    "started the guest on 'خیلی با هم فرق ندارند' rather than the host's last option-list words",
+    "kept the water-specialist disagreement as a qualification that overlap is not identity",
+    "started the payoff on 'ما می‌گوییم چشم مشکلی نداریم' rather than mid-clause مشکلی",
+    "ended on 'not all of reconstruction' so the share claim stays complete"
+  ],
+  "word_precision": true
+}

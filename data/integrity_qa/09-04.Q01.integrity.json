@@ -1,0 +1,23 @@
+{
+  "duration_s": 137.7,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 3,
+  "revision_attempt": 1,
+  "verdict": "PASS",
+  "reel_id": "0904_qa_Q01",
+  "integrity_repair": [
+    "kept full host question including guest identification so a new viewer knows who is answering",
+    "started guest at 'وقتی که ما تصمیم گرفتیم' rather than the mid-breath preface",
+    "ended dual-mission block on 'تدوین برنامه برای کشورداری فردا' after the complete clause"
+  ],
+  "word_precision": true
+}

@@ -1,0 +1,26 @@
+{
+  "duration_s": 129.332,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 4,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 2,
+  "reel_id": "0201_qa_Q01",
+  "integrity_repair": [
+    "kept the complete host question so a new viewer knows the gap being asked about",
+    "started the guest at the days-of-opposition sentence rather than the 'were you even born' preface",
+    "joined 'nothing inside or outside to defend monarchy' to the founding of the royalist body so the gap and the fill stay in one reasoning step",
+    "moved the party block onto 'این حزب قرار است' so it does not start on a stranded که",
+    "ended the payoff on 'sooner stand on its own feet' after the complete clause"
+  ],
+  "word_precision": true
+}

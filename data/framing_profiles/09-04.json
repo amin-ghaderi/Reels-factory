@@ -1,0 +1,135 @@
+{
+  "source_stem": "09-04",
+  "source_video": "data/inbox/09-04.mp4",
+  "frame_size": [
+    1920,
+    1080
+  ],
+  "layout": "stacked_faces",
+  "safety_margin": 0.04,
+  "person_a": {
+    "x": 276.5,
+    "y": 307.9,
+    "w": 437.8,
+    "h": 389.1
+  },
+  "person_b": {
+    "x": 1202.9,
+    "y": 307.9,
+    "w": 443.9,
+    "h": 394.6
+  },
+  "panel_a": {
+    "x": 73.4,
+    "y": 307.9,
+    "w": 836.3,
+    "h": 480.2
+  },
+  "panel_b": {
+    "x": 1007.8,
+    "y": 307.9,
+    "w": 823.4,
+    "h": 480.2
+  },
+  "duration_s": 2141.633,
+  "sample_windows": [
+    {
+      "start": 40.0,
+      "end": 58.0
+    },
+    {
+      "start": 130.0,
+      "end": 148.0
+    },
+    {
+      "start": 220.0,
+      "end": 238.0
+    },
+    {
+      "start": 310.0,
+      "end": 328.0
+    },
+    {
+      "start": 400.0,
+      "end": 418.0
+    },
+    {
+      "start": 490.0,
+      "end": 508.0
+    },
+    {
+      "start": 580.0,
+      "end": 598.0
+    },
+    {
+      "start": 670.0,
+      "end": 688.0
+    },
+    {
+      "start": 760.0,
+      "end": 778.0
+    },
+    {
+      "start": 850.0,
+      "end": 868.0
+    },
+    {
+      "start": 940.0,
+      "end": 958.0
+    },
+    {
+      "start": 1030.0,
+      "end": 1048.0
+    },
+    {
+      "start": 1120.0,
+      "end": 1138.0
+    },
+    {
+      "start": 1210.0,
+      "end": 1228.0
+    },
+    {
+      "start": 1300.0,
+      "end": 1318.0
+    },
+    {
+      "start": 1390.0,
+      "end": 1408.0
+    },
+    {
+      "start": 1480.0,
+      "end": 1498.0
+    },
+    {
+      "start": 1570.0,
+      "end": 1588.0
+    },
+    {
+      "start": 1660.0,
+      "end": 1678.0
+    },
+    {
+      "start": 1750.0,
+      "end": 1768.0
+    },
+    {
+      "start": 1840.0,
+      "end": 1858.0
+    },
+    {
+      "start": 1930.0,
+      "end": 1948.0
+    },
+    {
+      "start": 2020.0,
+      "end": 2038.0
+    },
+    {
+      "start": 2110.0,
+      "end": 2128.0
+    }
+  ],
+  "guest_panel": "bottom",
+  "notes": "Static split-screen for 09-04 only. Guest is RIGHT source panel / BOTTOM stacked crop (دکتر بابک سینا). Host is LEFT / TOP. Never recalculate per Reel or per segment. Do not reuse 17-05 or 18-05 crops."
+}

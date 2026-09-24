@@ -1,0 +1,11 @@
+{
+  "source_id": "0201",
+  "guest_name": "بانو میترا سالار",
+  "guest_role_line_1": "کنشگر سیاسی",
+  "guest_role_line_2": "عضو شورای مدیریت پارمان پادشاهی ایرانیان",
+  "guest_panel": "bottom",
+  "cover_template": "assets/covers/default/cover_template.png",
+  "cover_size": "1080x1920",
+  "procedural_cover_background": true,
+  "guest_portrait": "data/portraits/0201_guest_master.png"
+}

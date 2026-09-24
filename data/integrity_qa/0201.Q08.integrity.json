@@ -1,0 +1,24 @@
+{
+  "duration_s": 130.76,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 2,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 2,
+  "reel_id": "0201_qa_Q08",
+  "integrity_repair": [
+    "kept the complete host question including the 18–19 Dey frame so a new viewer knows the event",
+    "started the guest on 'it was very horrific' rather than a mid-reaction",
+    "preserved both the loss and the still-felt victory so the answer is not reduced to one mood"
+  ],
+  "word_precision": true
+}

@@ -87,18 +87,35 @@ def parse_cover_size(value: str) -> tuple[int, int]:
     return width, height
 
 
+def guest_role_lines(data: dict) -> list[str]:
+    """Two independent role lines, or a single legacy guest_role line. Never merged."""
+    line_1 = str(data.get("guest_role_line_1") or "").strip()
+    line_2 = str(data.get("guest_role_line_2") or "").strip()
+    if line_1 and line_2:
+        return [line_1, line_2]
+    role = str(data.get("guest_role") or "").strip()
+    return [role] if role else []
+
+
 def load_cover_metadata(path: Path, *, root: Path | None = None) -> dict:
     data = read_json(path)
-    required = ("guest_name", "guest_role", "guest_panel", "cover_template", "cover_size")
+    required = ("guest_name", "guest_panel", "cover_template", "cover_size")
     missing = [key for key in required if not str(data.get(key) or "").strip()]
     if missing:
         raise CoverError(f"{path.name} missing fields: {', '.join(missing)}")
+    lines = guest_role_lines(data)
+    if not lines:
+        raise CoverError(f"{path.name} missing guest_role or guest_role_line_1/guest_role_line_2")
     panel = str(data["guest_panel"]).strip().lower()
     if panel not in GUEST_PANELS:
         raise CoverError(f"guest_panel must be top or bottom, got {data['guest_panel']!r}")
     data["guest_panel"] = panel
     data["guest_name"] = str(data["guest_name"]).strip()
-    data["guest_role"] = str(data["guest_role"]).strip()
+    data["guest_role_lines"] = lines
+    data["guest_role_line_1"] = str(data.get("guest_role_line_1") or "").strip() or None
+    data["guest_role_line_2"] = str(data.get("guest_role_line_2") or "").strip() or None
+    data["guest_role"] = str(data.get("guest_role") or "").strip()
+    data["procedural_cover_background"] = bool(data.get("procedural_cover_background"))
     template_rel = str(data["cover_template"]).replace("\\", "/")
     template = Path(template_rel)
     if not template.is_absolute():
@@ -145,6 +162,8 @@ def load_cover_layout(template: Path, canvas: tuple[int, int]) -> dict:
             "guest": _box("guest", (270, 680, 540, 600)),
             "name": _box("name", (160, 1310, 760, 78)),
             "role": _box("role", (120, 1394, 840, 70)),
+            "role_line_1": _box("role_line_1", (160, 1388, 760, 42)),
+            "role_line_2": _box("role_line_2", (40, 1434, 1000, 50)),
             "guest_radius": int(round(float(raw.get("guest_radius", 42)) * min(sx, sy))),
             "protected": protected,
         }
@@ -153,6 +172,8 @@ def load_cover_layout(template: Path, canvas: tuple[int, int]) -> dict:
         "guest": (int(0.25 * width), int(0.35 * height), int(0.50 * width), int(0.31 * height)),
         "name": (int(0.15 * width), int(0.68 * height), int(0.70 * width), int(0.04 * height)),
         "role": (int(0.11 * width), int(0.73 * height), int(0.78 * width), int(0.036 * height)),
+        "role_line_1": (int(0.15 * width), int(0.723 * height), int(0.70 * width), int(0.022 * height)),
+        "role_line_2": (int(0.037 * width), int(0.747 * height), int(0.926 * width), int(0.026 * height)),
         "guest_radius": int(0.04 * width),
         "protected": [
             (int(0.02 * width), int(0.012 * height), int(0.22 * width), int(0.105 * height)),
@@ -1080,6 +1101,71 @@ def _draw_editorial_headline(
     return headline_label, (concept_label if concept else None)
 
 
+def _draw_guest_identity(
+    pil: Image.Image,
+    meta: dict,
+    layout: dict,
+    root: Path | None,
+    gold: tuple[int, int, int],
+) -> dict:
+    """Name plus either two independent role lines or the legacy single role."""
+    name_font, name_font_label = _fit_font_spec(meta["guest_name"], layout["name"], "name", root, 42, 24)
+    _draw_rtl_block(pil, meta["guest_name"], layout["name"], name_font, gold)
+    lines = list(meta.get("guest_role_lines") or guest_role_lines(meta))
+    fill = (232, 220, 190)
+    if len(lines) >= 2:
+        box1 = layout.get("role_line_1") or layout["role"]
+        box2 = layout.get("role_line_2") or layout["role"]
+        font1, label1 = _fit_font_spec(lines[0], box1, "role", root, 26, 16)
+        font2, label2 = _fit_font_spec(lines[1], box2, "role", root, 24, 15)
+        _draw_rtl_block(pil, lines[0], box1, font1, fill)
+        _draw_rtl_block(pil, lines[1], box2, font2, fill)
+        return {
+            "guest_name": name_font_label,
+            "guest_role": label1,
+            "guest_role_line_1": label1,
+            "guest_role_line_2": label2,
+        }
+    role = lines[0] if lines else str(meta.get("guest_role") or "")
+    role_font, role_font_label = _fit_font_spec(role, layout["role"], "role", root, 28, 18)
+    _draw_rtl_block(pil, role, layout["role"], role_font, fill)
+    return {"guest_name": name_font_label, "guest_role": role_font_label}
+
+
+def _maybe_recolor_cover(
+    canvas: np.ndarray,
+    meta: dict,
+    *,
+    root: Path,
+    reel_id: str,
+    existing_cover_json: Path | None,
+    generate_color: bool,
+) -> tuple[np.ndarray, dict | None]:
+    if not meta.get("procedural_cover_background"):
+        return canvas, None
+    from .cover_color import (
+        apply_background_recolor,
+        default_mask_path,
+        load_recolor_mask,
+        resolve_cover_background,
+    )
+
+    color = resolve_cover_background(
+        root=root,
+        source_id=str(meta.get("source_id") or ""),
+        reel_id=reel_id,
+        existing_cover_json=existing_cover_json,
+        generate=generate_color,
+    )
+    if color is None:
+        return canvas, None
+    mask_path = default_mask_path(root)
+    if not mask_path.is_file():
+        return canvas, color
+    mask = load_recolor_mask(mask_path, (canvas.shape[1], canvas.shape[0]))
+    return apply_background_recolor(canvas, mask, color), color
+
+
 def generate_cover_finaltest(
     plan_path: Path,
     metadata_path: Path,
@@ -1106,11 +1192,20 @@ def generate_cover_finaltest(
         raise CoverError(f"Could not read template: {meta['cover_template']}")
     canvas = scale_template(template_img, width, height)
     layout = load_cover_layout(Path(meta["cover_template"]), (width, height))
+    reel_id = plan.get("reel_id") or plan_path.stem
+    canvas, background_color = _maybe_recolor_cover(
+        canvas,
+        meta,
+        root=root,
+        reel_id=str(reel_id),
+        existing_cover_json=Path(output_json),
+        generate_color=True,
+    )
     master_file = Path(master_portrait)
     master = load_master_guest_portrait(master_file)
     gx, gy, gw, gh = layout["guest"]
     filled = face_aware_cover_crop(master["image"], gw, gh)
-    gold = _sample_gold(canvas)
+    gold = _sample_gold(scale_template(template_img, width, height))
     canvas = _paste_guest(canvas, filled["patch"], layout["guest"], layout["guest_radius"], gold)
     canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
 
@@ -1118,10 +1213,7 @@ def generate_cover_finaltest(
     headline_font_label, concept_font_label = _draw_editorial_headline(
         pil, headline_lines, concept_label, layout["headline"], root, gold
     )
-    name_font, name_font_label = _fit_font_spec(meta["guest_name"], layout["name"], "name", root, 42, 24)
-    role_font, role_font_label = _fit_font_spec(meta["guest_role"], layout["role"], "role", root, 28, 18)
-    _draw_rtl_block(pil, meta["guest_name"], layout["name"], name_font, gold)
-    _draw_rtl_block(pil, meta["guest_role"], layout["role"], role_font, (232, 220, 190))
+    identity_fonts = _draw_guest_identity(pil, meta, layout, root, gold)
     canvas = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
     canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
     problems = layout_problems(canvas, layout, scale_template(template_img, width, height))
@@ -1151,6 +1243,9 @@ def generate_cover_finaltest(
         "number_of_headline_lines": len(headline_lines),
         "guest_name": meta["guest_name"],
         "guest_role": meta["guest_role"],
+        "guest_role_line_1": meta.get("guest_role_line_1"),
+        "guest_role_line_2": meta.get("guest_role_line_2"),
+        "guest_role_lines": meta.get("guest_role_lines") or [],
         "guest_panel": meta["guest_panel"],
         "guest_portrait": str(master_file.as_posix()),
         "portrait_mode": "master_cover_fill",
@@ -1174,11 +1269,14 @@ def generate_cover_finaltest(
         },
         "template_used": meta.get("cover_template_rel") or str(Path(meta["cover_template"]).as_posix()),
         "cover_size": f"{width}x{height}",
+        "background_color": background_color,
         "fonts": {
             "headline": headline_font_label,
             "concept": concept_font_label,
-            "guest_name": name_font_label,
-            "guest_role": role_font_label,
+            "guest_name": identity_fonts.get("guest_name"),
+            "guest_role": identity_fonts.get("guest_role"),
+            "guest_role_line_1": identity_fonts.get("guest_role_line_1"),
+            "guest_role_line_2": identity_fonts.get("guest_role_line_2"),
         },
         "layout_problems": problems,
         "output": str(jpg_path.as_posix()),
@@ -1296,14 +1394,11 @@ def generate_cover(
     headline = choose_headline(candidates)
     pil = Image.fromarray(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
     headline_font, headline_font_label = _fit_font_spec(headline, layout["headline"], "headline", root, 68, 28)
-    name_font, name_font_label = _fit_font_spec(meta["guest_name"], layout["name"], "name", root, 42, 24)
-    role_font, role_font_label = _fit_font_spec(meta["guest_role"], layout["role"], "role", root, 28, 18)
     _draw_rtl_block(
         pil, headline, layout["headline"], headline_font, (255, 255, 255),
         stroke_fill=(8, 18, 40), stroke_width=2,
     )
-    _draw_rtl_block(pil, meta["guest_name"], layout["name"], name_font, gold)
-    _draw_rtl_block(pil, meta["guest_role"], layout["role"], role_font, (232, 220, 190))
+    identity_fonts = _draw_guest_identity(pil, meta, layout, root, gold)
     canvas = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
     canvas = _restore_protected(canvas, scale_template(template_img, width, height), layout["protected"])
     problems = layout_problems(canvas, layout, scale_template(template_img, width, height))
@@ -1321,6 +1416,9 @@ def generate_cover(
         "headline_candidates": candidates,
         "guest_name": meta["guest_name"],
         "guest_role": meta["guest_role"],
+        "guest_role_line_1": meta.get("guest_role_line_1"),
+        "guest_role_line_2": meta.get("guest_role_line_2"),
+        "guest_role_lines": meta.get("guest_role_lines") or [],
         "guest_panel": meta["guest_panel"],
         "guest_portrait": str(master_file.as_posix()) if master is not None else None,
         "portrait_mode": "master" if master is not None else "per_reel",
@@ -1342,8 +1440,10 @@ def generate_cover(
         "cover_size": f"{width}x{height}",
         "fonts": {
             "headline": headline_font_label,
-            "guest_name": name_font_label,
-            "guest_role": role_font_label,
+            "guest_name": identity_fonts.get("guest_name"),
+            "guest_role": identity_fonts.get("guest_role"),
+            "guest_role_line_1": identity_fonts.get("guest_role_line_1"),
+            "guest_role_line_2": identity_fonts.get("guest_role_line_2"),
         },
         "portrait_selection": {
             "frames_evaluated": still["evaluated"],

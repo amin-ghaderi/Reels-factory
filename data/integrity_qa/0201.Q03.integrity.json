@@ -1,0 +1,24 @@
+{
+  "duration_s": 118.55,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 1,
+  "closing_message": false,
+  "verdict": "PASS",
+  "revision_attempt": 2,
+  "reel_id": "0201_qa_Q03",
+  "integrity_repair": [
+    "kept the complete comparison question and dropped only the host's suggested answer",
+    "started the guest on respecting other parties then stating the practical contrast",
+    "preserved the qualification that monarchy was not always good and that people can have a specified mechanism, before the wish that monarchy remain"
+  ],
+  "word_precision": true
+}

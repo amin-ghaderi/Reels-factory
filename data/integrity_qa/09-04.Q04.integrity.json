@@ -1,0 +1,22 @@
+{
+  "duration_s": 102.46,
+  "duration_le_180": true,
+  "question_complete": true,
+  "answer_logically_complete": true,
+  "sentence_boundaries_clean": true,
+  "references_resolved": true,
+  "required_reasoning_preserved": true,
+  "important_qualifications_preserved": true,
+  "conclusion_supported": true,
+  "coherent_for_new_viewer": true,
+  "no_fragment_montage": true,
+  "answer_block_count": 2,
+  "revision_attempt": 1,
+  "verdict": "PASS",
+  "reel_id": "0904_qa_Q04",
+  "integrity_repair": [
+    "kept the full cooperation question",
+    "ended on the complete national-interest red-line list rather than the following aside"
+  ],
+  "word_precision": true
+}
